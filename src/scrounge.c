@@ -31,12 +31,6 @@
 #include "locks.h"
 #include "scrounge.h"
 
-#define RET_ERROR(l) { ::SetLastError(l); bRet = TRUE; goto clean_up; }
-#define PASS_ERROR() {bRet = TRUE; goto clean_up; }
-#define RET_FATAL(l) { ::SetLastError(l); bRet = FALSE; goto clean_up; }
-#define PASS_FATAL() {bRet = FALSE; goto clean_up; }
-
-
 // ----------------------------------------------------------------------
 // Process a potential MFT Record. For directories create the directory
 // and for files write out the file.
@@ -45,7 +39,7 @@
 // hIn is an open drive handle 
 // pInfo is partition info about hIn (needs to be a ref counted pointer)
 
-BOOL ProcessMFTRecord(PartitionInfo* pInfo, uint64 mftRecord, HANDLE hIn)
+BOOL ProcessMFTRecord(PartitionInfo* pInfo, uint64 sector, NTFS_MFTMap* map, HANDLE hIn)
 {
 	// Declare data that needs cleaning up first
 	BOOL bRet = TRUE;					// Return value
@@ -54,15 +48,16 @@ BOOL ProcessMFTRecord(PartitionInfo* pInfo, uint64 mftRecord, HANDLE hIn)
 	NTFS_Attribute* pAttribData = NULL; // Data Attribute
 	NTFS_DataRun* pDataRun = NULL;		// Data runs for nonresident data
 
+  ASSERT(sector != kInvalidSector);
+
 
 	// Tracks whether or not we output a file
 	bool bFile = false;
 
 	{
-
 		// Read the MFT record
 		NTFS_Record record(pInfo);
-		if(!record.Read(mftRecord, hIn))
+		if(!record.Read(sector, hIn))
 			PASS_ERROR();
 
 		NTFS_RecordHeader* pRecord = record.GetHeader();
@@ -79,7 +74,7 @@ BOOL ProcessMFTRecord(PartitionInfo* pInfo, uint64 mftRecord, HANDLE hIn)
 		FILETIME ftModified;
 		FILETIME ftAccessed;
 		DWORD fileAttrib = 0;
-		uint64 mftParent = 0;
+		uint64 mftParent = kInvalidSector;
 		byte* pResidentData = NULL;
 
 
@@ -124,7 +119,8 @@ BOOL ProcessMFTRecord(PartitionInfo* pInfo, uint64 mftRecord, HANDLE hIn)
 					fileAttrib |= FILE_ATTRIBUTE_SYSTEM;
 
 				// Parent Directory
-				mftParent = NTFS_RefToSector(*pInfo, pFileName->refParent);
+        if(map)
+          mftParent = map->SectorForIndex(pFileName->refParent & 0xFFFFFFFFFFFF);
 
 				// Namespace
 				nameSpace = pFileName->nameSpace;
@@ -138,20 +134,35 @@ BOOL ProcessMFTRecord(PartitionInfo* pInfo, uint64 mftRecord, HANDLE hIn)
 			RET_ERROR(ERROR_NTFS_INVALID);
 
 
-
 		// Check if it's the root
 		// If so then bumm out cuz we don't want to have anything to do with it
-		if(mftRecord == mftParent ||	// Root is it's own parent
-		   !wcscmp(fileName, L".") ||   // Or is called '.'
-		   !wcscmp(fileName, kNTFS_MFTName)) // Or it's the MFT
+		if(sector == mftParent ||	// Root is it's own parent
+		   !wcscmp(fileName, L"."))   // Or is called '.'
 		    RET_ERROR(ERROR_SUCCESS);
 
 
+    // If it's the MFT then we read that in
+    if(!wcscmp(fileName, kNTFS_MFTName))
+    {
+      if(map)
+      {
+        printf("[Processing MFT] ");
 
-		// Create Parent folders
-		if(!ProcessMFTRecord(pInfo, mftParent, hIn))
-			PASS_FATAL();
+        // We found the MFT, let's load it up
+        if(!map->Load(&record, hIn))
+          PASS_FATAL();
+      }
 
+      RET_ERROR(ERROR_SUCCESS);
+    }
+
+
+    if(mftParent != kInvalidSector)
+    {
+		  // Create Parent folders
+		  if(!ProcessMFTRecord(pInfo, mftParent, map, hIn))
+			  PASS_FATAL();
+    }
 
 
 		// If it's a folder then create it
@@ -381,6 +392,58 @@ void PrintLastError()
 
 BOOL ScroungeMFTRecords(PartitionInfo* pInfo, HANDLE hIn)
 {
+	uint64 numRecords = 0;
+
+	// Save current directory away
+	TCHAR curDir[MAX_PATH + 1];
+	GetCurrentDirectory(MAX_PATH, curDir);
+
+  NTFS_MFTMap map(pInfo);
+
+  // Try and find the MFT at the given location
+  uint64 sector = pInfo->offMFT + pInfo->firstSector;
+
+  if(sector < pInfo->lastSector)
+  {
+    BOOL bRet = ProcessMFTRecord(pInfo, sector, &map, hIn);
+
+		fputc('\n', stdout);
+
+		if(!bRet)
+			return FALSE;
+  }
+
+  uint64 length = map.GetLength();
+  if(length == 0)
+  {
+    printf("[MFT not found at specified location. No folder structure]\n");
+    return ScroungeRawRecords(pInfo, hIn);
+  }
+
+  for(uint64 i = 1; i < length; i += (kNTFS_RecordLen / kSectorSize))
+  {
+  	// Move to right output directory
+	  SetCurrentDirectory(curDir);
+
+    // TODO: Warn when invalid
+    uint64 sector = map.SectorForIndex(i);
+    if(sector == kInvalidSector)
+      continue;
+
+		// Then process it
+		BOOL bRet = ProcessMFTRecord(pInfo, sector, &map, hIn);
+
+		fputc('\n', stdout);
+
+		if(!bRet)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+BOOL ScroungeRawRecords(PartitionInfo* pInfo, HANDLE hIn)
+{
 	byte buffSec[kSectorSize];
 	DWORD dwDummy = 0;
 
@@ -418,7 +481,7 @@ BOOL ScroungeMFTRecords(PartitionInfo* pInfo, HANDLE hIn)
 			SetCurrentDirectory(curDir);
 
 			// Then process it
-			BOOL bRet = ProcessMFTRecord(pInfo, sec, hIn);
+			BOOL bRet = ProcessMFTRecord(pInfo, sec, NULL, hIn);
 
 			fputc('\n', stdout);
 

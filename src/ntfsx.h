@@ -64,8 +64,8 @@ public:
 
 	bool New(PartitionInfo* pInfo);
 	bool Read(PartitionInfo* pInfo, uint64 begSector, HANDLE hIn);
-	void Free()
-		{ if(m_pCluster) refrelease(m_pCluster); }
+	void Free();
+
 	
 	uint32 m_cbCluster;
 	byte* m_pCluster;
@@ -95,7 +95,8 @@ protected:
 	uint32 m_cbMem;
 };
 
-class NTFS_Record : public NTFS_Cluster
+class NTFS_Record : 
+  public NTFS_Cluster
 {
 public:
 	NTFS_Record(PartitionInfo* pInfo);
@@ -109,6 +110,30 @@ public:
 
 protected:
 	PartitionInfo* m_pInfo;
+};
+
+class NTFS_MFTMap
+{
+public:
+  NTFS_MFTMap(PartitionInfo* pInfo);
+  ~NTFS_MFTMap();
+
+  bool Load(NTFS_Record* pRecord, HANDLE hIn);
+
+  uint64 GetLength();
+  uint64 SectorForIndex(uint64 index);
+
+protected:
+  PartitionInfo* m_pInfo;
+
+  struct NTFS_Block
+  {
+    uint64 firstSector;   // relative to the entire drive
+    uint64 length;        // length in MFT records
+  };
+
+  NTFS_Block* m_pBlocks;
+  uint32 m_count;
 };
 
 #endif // !defined(AFX_NTFSX__9363C7D2_D3CC_4D49_BEE0_27AD025670F2__INCLUDED_)

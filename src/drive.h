@@ -27,6 +27,7 @@
 #include "usuals.h"
 
 const uint16 kSectorSize = 0x200;
+const uint64 kInvalidSector = 0xFFFFFFFFFFFFFFFF;
 struct DriveLock;
 
 struct PartitionInfo

@@ -23,9 +23,14 @@
 #ifndef __SCROUNGE_H__
 #define __SCROUNGE_H__
 
+#define RET_ERROR(l) { ::SetLastError(l); bRet = TRUE; goto clean_up; }
+#define PASS_ERROR() {bRet = TRUE; goto clean_up; }
+#define RET_FATAL(l) { ::SetLastError(l); bRet = FALSE; goto clean_up; }
+#define PASS_FATAL() {bRet = FALSE; goto clean_up; }
 
-BOOL ProcessMFTRecord(PartitionInfo* pInfo, uint64 mftRecord, HANDLE hIn);
+BOOL ProcessMFTRecord(PartitionInfo* pInfo, uint64 sector, NTFS_MFTMap* map, HANDLE hIn);
 BOOL ScroungeMFTRecords(PartitionInfo* pInfo, HANDLE hIn);
+BOOL ScroungeRawRecords(PartitionInfo* pInfo, HANDLE hIn);
 void PrintLastError();
 
 

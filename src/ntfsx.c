@@ -27,6 +27,7 @@
 #include "stdafx.h"
 #include "ntfs.h"
 #include "ntfsx.h"
+#include "scrounge.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -71,6 +72,14 @@ bool NTFS_Cluster::Read(PartitionInfo* pInfo, uint64 begSector, HANDLE hIn)
 
 	::SetLastError(ERROR_SUCCESS);
 	return true;
+}
+
+void NTFS_Cluster::Free()
+{ 
+  if(m_pCluster) 
+      refrelease(m_pCluster); 
+  
+  m_pCluster = NULL;
 }
 
 NTFS_Record::NTFS_Record(PartitionInfo* pInfo)
@@ -256,4 +265,132 @@ bool NTFS_DataRun::Next()
 	}
 
 	return true;
+}
+
+NTFS_MFTMap::NTFS_MFTMap(PartitionInfo* pInfo)
+{
+	m_pInfo	= (PartitionInfo*)refadd(pInfo);
+  m_pBlocks = NULL;
+  m_count = 0;
+}
+
+NTFS_MFTMap::~NTFS_MFTMap()
+{
+	refrelease(m_pInfo);
+
+  if(m_pBlocks)
+    free(m_pBlocks);
+}
+
+bool NTFS_MFTMap::Load(NTFS_Record* pRecord, HANDLE hIn)
+{
+  bool bRet = TRUE;
+	NTFS_Attribute* pAttribData = NULL; // Data Attribute
+	NTFS_DataRun* pDataRun = NULL;		// Data runs for nonresident data
+
+  {
+    printf("[Processing MFT] ");
+
+    // TODO: Check here whether MFT has already been loaded
+  
+	  // Get the MFT's data
+	  pAttribData = pRecord->FindAttribute(kNTFS_DATA, hIn);
+	  if(!pAttribData) RET_ERROR(ERROR_NTFS_INVALID);
+
+    if(!pAttribData->GetHeader()->bNonResident)
+      RET_ERROR(ERROR_NTFS_INVALID);
+
+		pDataRun = pAttribData->GetDataRun();
+    if(!pDataRun)
+      RET_ERROR(ERROR_NTFS_INVALID);
+
+		NTFS_AttribNonResident* pNonRes = (NTFS_AttribNonResident*)pAttribData->GetHeader();
+    
+    if(m_pBlocks)
+    {
+      free(m_pBlocks);
+      m_pBlocks = NULL;
+    }
+
+    m_count = 0;
+    uint32 allocated = 0;
+
+		// Now loop through the data run
+		if(pDataRun->First())
+		{
+			do
+			{
+        if(pDataRun->m_bSparse)
+          RET_ERROR(ERROR_NTFS_INVALID);
+
+        if(m_count >= allocated)
+        {
+          allocated += 16;
+          m_pBlocks = (NTFS_Block*)realloc(m_pBlocks, allocated * sizeof(NTFS_Block));
+          if(!m_pBlocks)
+      			RET_FATAL(ERROR_NOT_ENOUGH_MEMORY);
+        }
+
+        uint64 length = pDataRun->m_numClusters * ((m_pInfo->clusterSize * kSectorSize) / kNTFS_RecordLen);
+        if(length == 0)
+          continue;
+
+        uint64 firstSector = (pDataRun->m_firstCluster * m_pInfo->clusterSize) + m_pInfo->firstSector;
+        if(firstSector >= m_pInfo->lastSector)
+          continue;
+
+        m_pBlocks[m_count].length = length;
+        m_pBlocks[m_count].firstSector = firstSector;
+        m_count++;
+			} 
+			while(pDataRun->Next());
+    }
+
+    bRet = true;
+    ::SetLastError(ERROR_SUCCESS);
+  }
+
+clean_up:
+
+  if(pAttribData)
+    delete pAttribData;
+  if(pDataRun)
+    delete pDataRun;
+
+  return bRet;
+}
+
+uint64 NTFS_MFTMap::GetLength()
+{
+  uint64 length = 0;
+
+  for(uint32 i = 0; i < m_count; i++)
+    length += m_pBlocks[i].length;
+
+  return length;
+}
+
+uint64 NTFS_MFTMap::SectorForIndex(uint64 index)
+{
+  for(uint32 i = 0; i < m_count; i++)
+  {
+    NTFS_Block* p = m_pBlocks + i;
+
+    if(index > p->length)
+    {
+      index -= p->length;
+    }
+    else
+    {
+      uint64 sector = index * (kNTFS_RecordLen / kSectorSize);
+      sector += p->firstSector;
+
+      if(sector > m_pInfo->lastSector)
+        return kInvalidSector;
+
+      return sector;
+    }
+  }
+
+  return kInvalidSector;
 }

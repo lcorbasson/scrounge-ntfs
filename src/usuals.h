@@ -23,7 +23,7 @@
 #ifndef __USUALS_H__20010822
 #define __USUALS_H__20010822
 
-#include <debug.h>
+#include <win32/debug.h>
 
 typedef unsigned __int64 uint64;
 typedef unsigned long uint32;

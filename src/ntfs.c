@@ -50,11 +50,18 @@ NTFS_AttribHeader* NTFS_SearchAttribute(byte* pLocation, uint32 attrType, void* 
 	return NULL;
 }
 
+byte* NTFS_GetAttributeList(NTFS_RecordHeader* pRecord)
+{
+  byte* pLocation = (byte*)pRecord;
+  ASSERT(pRecord->x_offUpdSeqArr != 0);
+  ASSERT(pRecord->x_offUpdSeqArr < 0x100);
+  pLocation += pRecord->x_offUpdSeqArr;
+  return pLocation;
+}
 
 NTFS_AttribHeader* NTFS_FindAttribute(NTFS_RecordHeader* pRecord, uint32 attrType, void* pEnd)
 {
-	byte* pLocation = (byte*)pRecord;
-	pLocation += kNTFS_RecHeaderLen;
+	byte* pLocation = NTFS_GetAttributeList(pRecord);
 
 	return NTFS_SearchAttribute(pLocation, attrType, pEnd, false);
 }

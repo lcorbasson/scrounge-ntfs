@@ -65,7 +65,7 @@ void* _refadd_dbg(void* pBuff)
 	{
 		// Increment the counter value
 		size_t* pMem = (size_t*)pBuff - 2;
-		assert(pMem[0] = kRefSig);
+		assert(pMem[0] == kRefSig);
 		pMem[1]++;
 	}
 
@@ -87,7 +87,7 @@ void _refrelease_dbg(void* pBuff)
 	{
 		// Decrement the counter value
 		size_t* pMem = (size_t*)pBuff - 2;
-		assert(pMem[0] = kRefSig);
+		assert(pMem[0] == kRefSig);
 
 		if(!--pMem[1])
 			free(pMem);
