@@ -24,18 +24,16 @@
 
 ntfsx_datarun* ntfsx_datarun_alloc(byte* mem, byte* datarun)
 {
-  ntfsx_datarun* dr = (ntfsx_datarun*)malloc(sizeof(ntfsx_datarun));
-  if(dr)
-  {
-    ASSERT(datarun);
-	  dr->_mem = (byte*)refadd(mem);
-	  dr->_datarun = datarun;
-    dr->_curpos = NULL;
+  ntfsx_datarun* dr = (ntfsx_datarun*)mallocf(sizeof(ntfsx_datarun));
 
-    dr->cluster = 0;
-    dr->length = 0;
-    dr->sparse = false;
-  }
+  ASSERT(datarun);
+	dr->_mem = (byte*)refadd(mem);
+	dr->_datarun = datarun;
+  dr->_curpos = NULL;
+
+  dr->cluster = 0;
+  dr->length = 0;
+  dr->sparse = false;
 
   return dr;
 }
@@ -116,20 +114,13 @@ bool ntfsx_datarun_next(ntfsx_datarun* dr)
 
 
 
-bool ntfsx_cluster_reserve(ntfsx_cluster* clus, partitioninfo* info)
+void ntfsx_cluster_reserve(ntfsx_cluster* clus, partitioninfo* info)
 {
   ntfsx_cluster_release(clus);
   clus->size = CLUSTER_SIZE(*info);
 
   ASSERT(clus->size != 0);
   clus->data = (byte*)refalloc(clus->size);
-  if(!clus->data)
-  {
-    errno = ENOMEM;
-    return false;
-  }
-  
-  return true;
 }
 
 bool ntfsx_cluster_read(ntfsx_cluster* clus, partitioninfo* info, uint64 begSector, int dd)
@@ -138,10 +129,7 @@ bool ntfsx_cluster_read(ntfsx_cluster* clus, partitioninfo* info, uint64 begSect
   size_t sz;
 
   if(!clus->data)
-  {
-    if(!ntfsx_cluster_reserve(clus, info))
-      return false;
-  }
+    ntfsx_cluster_reserve(clus, info);
 
   pos = SECTOR_TO_BYTES(begSector);
   if(lseek64(dd, pos, SEEK_SET) == -1)
@@ -174,14 +162,10 @@ void ntfsx_cluster_release(ntfsx_cluster* clus)
 
 ntfsx_attribute* ntfsx_attribute_alloc(ntfsx_cluster* clus, ntfs_attribheader* header)
 {
-  ntfsx_attribute* attr = (ntfsx_attribute*)malloc(sizeof(ntfsx_attribute));
-  if(attr)
-  {
-    attr->_header = header;
-    attr->_mem = (byte*)refadd(clus->data);
-    attr->_length = clus->size;
-  }
-
+  ntfsx_attribute* attr = (ntfsx_attribute*)mallocf(sizeof(ntfsx_attribute));
+  attr->_header = header;
+  attr->_mem = (byte*)refadd(clus->data);
+  attr->_length = clus->size;
   return attr;
 }
 
@@ -236,15 +220,226 @@ bool ntfsx_attribute_next(ntfsx_attribute* attr, uint32 attrType)
 }
 
 
-ntfsx_record* ntfsx_record_alloc(partitioninfo* info)
+
+#define ATTR_ENUM_LISTPRI     1 << 1
+#define ATTR_ENUM_DONEINLINE  1 << 2
+#define ATTR_ENUM_DONELIST    1 << 3
+#define ATTR_ENUM_FOUNDLIST   1 << 4
+
+ntfsx_attrib_enum* ntfsx_attrib_enum_alloc(uint32 type, bool normal)
 {
-  ntfsx_record* rec = (ntfsx_record*)malloc(sizeof(ntfsx_record));
-  if(rec)
+  ntfsx_attrib_enum* attrenum = (ntfsx_attrib_enum*)mallocf(sizeof(ntfsx_attrib_enum));
+  attrenum->type = type;
+  attrenum->_attrhead = NULL;
+  attrenum->_listrec = NULL;
+  attrenum->_flags = normal ? ATTR_ENUM_LISTPRI : 0;
+  return attrenum;  
+}
+
+ntfsx_attribute* ntfsx_attrib_enum_inline(ntfsx_attrib_enum* attrenum, ntfsx_record* record)
+{
+  ntfsx_attribute* attr;
+  ntfsx_cluster* cluster;
+  ntfs_recordheader* rechead;
+
+  /* If we're done */
+  if(attrenum->_flags & ATTR_ENUM_DONEINLINE)
+    return NULL;
+
+  cluster = ntfsx_record_cluster(record);
+  rechead = ntfsx_record_header(record);
+
+  /* If this is the first time */
+  if(!attrenum->_attrhead && !attrenum->_listrec)
   {
-    rec->info = info;
-    memset(&(rec->_clus), 0, sizeof(ntfsx_cluster));
+    attrenum->_attrhead = ntfs_findattribute(rechead, attrenum->type, 
+                                              cluster->data + cluster->size);
+
+    if(attrenum->_attrhead)
+    {
+      attr = ntfsx_attribute_alloc(cluster, attrenum->_attrhead);
+      return attr;
+    }
+
+    /* Otherwise we fall through to the attr list stuff below */
   }
 
+  /* Look for another attribute in the record */
+  if(attrenum->_attrhead && attrenum->_attrhead->type == attrenum->type)
+  {
+    attrenum->_attrhead = ntfs_nextattribute(attrenum->_attrhead, attrenum->type,
+                                          cluster->data + cluster->size);
+
+    if(attrenum->_attrhead)
+    {
+      attr = ntfsx_attribute_alloc(cluster, attrenum->_attrhead);
+      return attr;
+    }
+
+    /* Otherwise we're done */
+  }
+
+  attrenum->_flags |= ATTR_ENUM_DONEINLINE;
+  return NULL;
+}
+
+ntfsx_attribute* ntfsx_attrib_enum_list(ntfsx_attrib_enum* attrenum, ntfsx_record* record)
+{
+  ntfsx_cluster* cluster;
+  ntfs_recordheader* rechead;
+  ntfs_attribresident* resident;
+  ntfs_attribheader* attrhead;
+  ntfsx_attribute* attr;
+  uint64 mftRecord;
+  ntfsx_record* r2;
+  ntfsx_cluster* c2;
+
+  ASSERT(record && attrenum);
+
+  /* If we're done */
+  if(attrenum->_flags & ATTR_ENUM_DONELIST)
+    return NULL;
+
+  cluster = ntfsx_record_cluster(record);
+  rechead = ntfsx_record_header(record);
+
+  /* Okay first check for attribute lists  */
+  if(!attrenum->_listrec && !attrenum->_attrhead)
+  {
+    attrenum->_attrhead = ntfs_findattribute(rechead, kNTFS_ATTRIBUTE_LIST,
+                                             cluster->data + cluster->size);
+  
+    /* If no attribute list, end of story */
+    if(!attrenum->_attrhead)
+    {
+      attrenum->_flags |= ATTR_ENUM_DONELIST;
+      return NULL;
+    }
+
+    /* We don't support non-resident attribute lists (which are stupid!) */
+    if(attrenum->_attrhead->bNonResident)
+    {
+      warnx("brain dead, incredibly fragmented file data. skipping");
+      attrenum->_flags |= ATTR_ENUM_DONELIST;
+      return NULL;
+    }
+  }
+
+  /* This has to be set by now */
+  ASSERT(record->info->mftmap);
+  ASSERT(attrenum->_attrhead);
+  ASSERT(attrenum->_attrhead->type == kNTFS_ATTRIBUTE_LIST);
+
+  resident = (ntfs_attribresident*)attrenum->_attrhead;
+
+  for(;;)
+  {
+    if(attrenum->_listrec) /* progress to next record */
+      attrenum->_listrec = (ntfs_attriblistrecord*)(((byte*)attrenum->_listrec) + attrenum->_listrec->cbRecord);
+
+    else  /* get first record */
+      attrenum->_listrec = (ntfs_attriblistrecord*)((byte*)resident + resident->offAttribData);
+
+    if(((byte*)attrenum->_listrec) >= ((byte*)attrenum->_attrhead) + attrenum->_attrhead->cbAttribute)
+    {
+      attrenum->_listrec = NULL;
+      attrenum->_flags |= ATTR_ENUM_DONELIST;
+      return NULL;
+    }
+
+    if(attrenum->_listrec->type == attrenum->type)
+    {
+      attr = NULL;
+      r2 = NULL;
+
+		  /* Read in appropriate cluster */
+      mftRecord = ntfsx_mftmap_sectorforindex(record->info->mftmap, attrenum->_listrec->refAttrib & kNTFS_RefMask);
+      if(mftRecord == kInvalidSector)
+      {
+        warnx("invalid sector in mft map. screwed up file. skipping data");
+      }
+      else
+      {
+        r2 = ntfsx_record_alloc(record->info);
+
+        if(ntfsx_record_read(r2, mftRecord, record->info->device))
+        {
+          rechead = ntfsx_record_header(r2);
+          c2 = ntfsx_record_cluster(r2);
+          attrhead = ntfs_findattribute(rechead, attrenum->type,
+                                          c2->data + c2->size);
+
+          if(attrhead)
+            attr = ntfsx_attribute_alloc(c2, attrhead);
+        }
+      }
+
+      if(r2)
+        ntfsx_record_free(r2);
+
+      if(attr)
+        return attr;
+    }
+  }
+
+  /* Not reached */
+  ASSERT(false);
+}
+
+ntfsx_attribute* ntfsx_attrib_enum_all(ntfsx_attrib_enum* attrenum, ntfsx_record* record)
+{
+  ntfsx_attribute* attr = NULL;
+
+  ASSERT(record && attrenum);
+
+  /* 
+   * When in this mode list attributes completely override
+   * any inline attributes. This is the normal mode of 
+   * operation
+   */
+  if(attrenum->_flags & ATTR_ENUM_LISTPRI)
+  {
+    if(!(attrenum->_flags & ATTR_ENUM_DONELIST))
+    {
+      attr = ntfsx_attrib_enum_list(attrenum, record);
+
+      if(attr)
+        attrenum->_flags |= ATTR_ENUM_FOUNDLIST;
+    }
+
+    if(!attr && !(attrenum->_flags & ATTR_ENUM_FOUNDLIST) && 
+       !(attrenum->_flags & ATTR_ENUM_DONEINLINE))
+      attr = ntfsx_attrib_enum_inline(attrenum, record);
+  }
+
+  /* 
+   * The other mode of operation is to find everything 
+   * inline first and then stuff in the lists.
+   */
+  else
+  {
+    if(!(attrenum->_flags & ATTR_ENUM_DONEINLINE))
+      attr = ntfsx_attrib_enum_inline(attrenum, record);
+
+    if(!attr && !(attrenum->_flags & ATTR_ENUM_DONELIST))
+      attr = ntfsx_attrib_enum_list(attrenum, record);
+  }
+
+  return attr;
+}  
+
+void ntfsx_attrib_enum_free(ntfsx_attrib_enum* attrenum)
+{
+  free(attrenum);
+} 
+
+
+
+ntfsx_record* ntfsx_record_alloc(partitioninfo* info)
+{
+  ntfsx_record* rec = (ntfsx_record*)mallocf(sizeof(ntfsx_record));
+  rec->info = info;
+  memset(&(rec->_clus), 0, sizeof(ntfsx_cluster));
   return rec;
 }
 
@@ -274,6 +469,11 @@ bool ntfsx_record_read(ntfsx_record* record, uint64 begSector, int dd)
   return true;
 }
 
+ntfsx_cluster* ntfsx_record_cluster(ntfsx_record* record)
+{
+  return &(record->_clus);
+}
+
 ntfs_recordheader* ntfsx_record_header(ntfsx_record* record)
 {
   return (ntfs_recordheader*)(record->_clus.data); 
@@ -281,62 +481,13 @@ ntfs_recordheader* ntfsx_record_header(ntfsx_record* record)
 
 ntfsx_attribute* ntfsx_record_findattribute(ntfsx_record* record, uint32 attrType, int dd)
 {
+  ntfsx_attrib_enum* attrenum = NULL;
 	ntfsx_attribute* attr = NULL;
-  ntfs_attribheader* attrhead;
-  ntfs_attriblistrecord* atlr;
-  ntfs_attribresident* resident;
-  uint64 mftRecord;
-  ntfsx_record* r2;
 
-	/* Make sure we have a valid record */
-	ASSERT(ntfsx_record_header(record));
-	attrhead = ntfs_findattribute(ntfsx_record_header(record), 
-                        attrType, (record->_clus.data) + (record->_clus.size));
-
-	if(attrhead)
-	{
-		attr = ntfsx_attribute_alloc(&(record->_clus), attrhead);
-	}
-	else
-	{
-		/* Do attribute list thing here! */
-		attrhead = ntfs_findattribute(ntfsx_record_header(record), kNTFS_ATTRIBUTE_LIST, 
-                                      (record->_clus.data) + (record->_clus.size));
-
-    /* For now we only support Resident Attribute lists */
-		if(dd && attrhead && !attrhead->bNonResident && record->info->mftmap)
-		{
-			resident = (ntfs_attribresident*)attrhead;
-			atlr = (ntfs_attriblistrecord*)((byte*)attrhead + resident->offAttribData);
-
-			/* Go through AttrList records looking for this attribute */
-			while((byte*)atlr < (byte*)attrhead + attrhead->cbAttribute)
-			{
-				/* Found it! */
-				if(atlr->type == attrType)
-				{
-					/* Read in appropriate cluster */
-          mftRecord = ntfsx_mftmap_sectorforindex(record->info->mftmap, atlr->refAttrib & kNTFS_RefMask);
-
-					r2 = ntfsx_record_alloc(record->info);
-          if(!r2)
-            return NULL;
-
-          if(ntfsx_record_read(r2, mftRecord, dd))
-            attr = ntfsx_record_findattribute(r2, attrType, dd);
-
-          ntfsx_record_free(r2);
-
-          if(attr)
-            break;
-				}
-
- 				atlr = (ntfs_attriblistrecord*)((byte*)atlr + atlr->cbRecord);
-			}
-		}
-	}
-
-	return attr;
+  attrenum = ntfsx_attrib_enum_alloc(attrType, true);
+  attr = ntfsx_attrib_enum_all(attrenum, record);
+  ntfsx_attrib_enum_free(attrenum);
+  return attr;
 }
 
 
@@ -372,8 +523,6 @@ static void mftmap_expand(ntfsx_mftmap* map, uint32* allocated)
     (*allocated) += 16;
     map->_blocks = (struct _ntfsx_mftmap_block*)reallocf(map->_blocks, 
                   (*allocated) * sizeof(struct _ntfsx_mftmap_block));
-    if(!(map->_blocks))
- 			errx(1, "out of memory");
   }
 }
 
@@ -382,6 +531,7 @@ bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd)
   bool ret = true;
 	ntfsx_attribute* attribdata = NULL;   /* Data Attribute */
 	ntfsx_datarun* datarun = NULL;	      /* Data runs for nonresident data */
+  ntfsx_attrib_enum* attrenum = NULL;
 
   {
     ntfs_attribheader* header;
@@ -390,24 +540,8 @@ bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd)
     uint64 firstSector;
     uint32 allocated;
     uint64 total;
+    bool hasdata = false;
 
-    /* TODO: Check here whether MFT has already been loaded */
-  
-	  /* Get the MFT's data */
-	  attribdata = ntfsx_record_findattribute(record, kNTFS_DATA, dd);
-	  if(!attribdata)
-      RETWARNBX("invalid mft. no data attribute");
-
-    header = ntfsx_attribute_header(attribdata);
-    if(!header->bNonResident)
-      RETWARNBX("invalid mft. data attribute non-resident");
-
-		datarun = ntfsx_attribute_getdatarun(attribdata);
-    if(!datarun)
-      RETWARNBX("invalid mft. no data runs");
-
-		nonres = (ntfs_attribnonresident*)header;
-    
     if(map->_blocks)
     {
       free(map->_blocks);
@@ -416,64 +550,86 @@ bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd)
 
     map->_count = 0;
     allocated = 0;
-    mftmap_expand(map, &allocated);
+    total = 0;
+  
+    attrenum = ntfsx_attrib_enum_alloc(kNTFS_DATA, false);
 
-    total = nonres->cbAttribData / kSectorSize;
-
-		/* Now loop through the data run */
-		if(ntfsx_datarun_first(datarun))
-		{
-			do
-			{
-        if(datarun->sparse)
-          RETWARNBX("invalid mft. sparse data runs");
-
-        mftmap_expand(map, &allocated);
-
-        ASSERT(map->info->cluster != 0);
-
-        length = datarun->length * ((map->info->cluster * kSectorSize) / kNTFS_RecordLen);
-        if(length == 0)
-          continue;
-
-        firstSector = (datarun->cluster * map->info->cluster) + map->info->first;
-        if(firstSector >= map->info->end)
-          continue;
-
-        map->_blocks[map->_count].length = length;
-        map->_blocks[map->_count].firstSector = firstSector;
-        map->_count++;
-
-        /*
-         * In some cases the data runs for the MFT don't specify the entire
-         * MFT file, and so we track the remainder and tack it onto
-         * the last block.
-         */
-        total -= length;
-			} 
-			while(ntfsx_datarun_next(datarun));
-
-    }
-
-    if(total > 0)
+    while((attribdata = ntfsx_attrib_enum_all(attrenum, record)) != NULL)
     {
-      if(map->_count == 0)
+      header = ntfsx_attribute_header(attribdata);
+      if(!header->bNonResident)
       {
-        /*
-         * When no data runs were found we start off right
-         * at the MFT and go for the specified length.
-         */
-        ASSERT(allocated > 0);
-        map->_blocks[0].length = total;
-        map->_blocks[0].firstSector = map->info->mft + map->info->first;
+        warnx("invalid mft. data attribute non-resident");
       }
-
       else
       {
-        /* Add the remainder of the missing blocks here */
-        map->_blocks[map->_count - 1].length += total;
-      }
+  		  datarun = ntfsx_attribute_getdatarun(attribdata);
+        if(!datarun)
+        {
+          warnx("invalid mft. no data runs in data attribute");
+        }
+        else
+        {
+          hasdata = true;
+		      nonres = (ntfs_attribnonresident*)header;
+
+          /* Check total length against nonres->cbAllocated */
+          if(map->_count == 0)
+            total = nonres->cbAllocated;
+
+		      /* Now loop through the data run */
+		      if(ntfsx_datarun_first(datarun))
+		      {
+			      do
+			      {
+              if(datarun->sparse)
+              {
+                warnx("invalid mft. sparse data runs");
+              }
+              else
+              {
+                mftmap_expand(map, &allocated);
+
+                ASSERT(map->info->cluster != 0);
+
+                length = datarun->length * ((map->info->cluster * kSectorSize) / kNTFS_RecordLen);
+                if(length == 0)
+                  continue;
+
+                firstSector = (datarun->cluster * map->info->cluster) + map->info->first;
+                if(firstSector >= map->info->end)
+                  continue;
+
+                /* 
+                 * When the same as the last one skip. This occurs in really
+                 * fragmented MFTs where we read the inline DATA attribute first
+                 * and then move on to the ATTRLIST one.
+                 */
+                if(map->_count > 0 && map->_blocks[map->_count - 1].length == length &&
+                   map->_blocks[map->_count - 1].firstSector == firstSector)
+                  continue;
+
+                map->_blocks[map->_count].length = length;
+                map->_blocks[map->_count].firstSector = firstSector;
+                map->_count++;
+
+                total -= length * kSectorSize;
+              }
+			      } 
+			      while(ntfsx_datarun_next(datarun));
+          }
+
+          ntfsx_datarun_free(datarun);
+          datarun = NULL;
+        }
+      } 
+
+      ntfsx_attribute_free(attribdata);
+      attribdata = NULL;
     }
+
+    if(!hasdata)
+      RETWARNBX("invalid mft. no data attribute");
 
     ret = true;
   }
@@ -484,6 +640,8 @@ cleanup:
     ntfsx_attribute_free(attribdata);
   if(datarun)
     ntfsx_datarun_free(datarun);
+  if(attrenum)
+    ntfsx_attrib_enum_free(attrenum);
 
   return ret;
 }

@@ -38,9 +38,6 @@ void addLocationLock(drivelocks* locks, uint64 beg, uint64 end)
 	{
 		locks->_count += 0x400;
 		locks->_locks = (struct drivelock*)reallocf(locks->_locks, sizeof(struct drivelock) * locks->_count);
-  
-    if(!locks->_locks)
-      errx(1, "out of memory");
   }
 
 	/* TODO: Implement a more efficient method here! */
@@ -110,7 +107,7 @@ const size_t kRefSig = 0x1F2F3F4F;
 void* _refalloc_dbg(size_t sz)
 {
 	/* Allocate extra counter value before memory */
-	size_t* mem = (size_t*)malloc(sz * sizeof(size_t) * 2);
+	size_t* mem = (size_t*)mallocf(sz * sizeof(size_t) * 2);
 
 	if(mem)
 	{
@@ -126,7 +123,7 @@ void* _refalloc_dbg(size_t sz)
 void* _refalloc(size_t sz)
 {
 	/* Allocate extra counter value before memory */
-	size_t* mem = (size_t*)malloc(sz * sizeof(size_t) * 1);
+	size_t* mem = (size_t*)mallocf(sz * sizeof(size_t) * 1);
 
 	if(mem)
 	{
@@ -188,4 +185,32 @@ void _refrelease(void* buf)
 	}
 }
 
+#define COMPARE_BLOCK_SIZE  4096
 
+int compareFileData(int f, void* data, size_t length)
+{
+  unsigned char buf[COMPARE_BLOCK_SIZE];
+  unsigned char* d = (unsigned char*)data;
+  int num, r;
+
+  while(length > 0)
+  {
+    num = min(COMPARE_BLOCK_SIZE, length);
+    r = read(f, buf, num);
+
+    if(r < 0)
+      err(1, "error reading comparison file");
+
+    if(r < num)
+      return -1;
+
+    r = memcmp(d, buf, num);
+    if(r != 0)
+      return r;
+
+    d += num;
+    length -= num;
+  }
+
+  return 0;
+}

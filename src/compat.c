@@ -288,11 +288,21 @@ void vwarnx(const char *fmt, va_list ap)
 void* reallocf(void* ptr, size_t size)
 {
 	void* ret = realloc(ptr, size);
-
-	if(!ret && size)
-		free(ptr);
-
+  if(!ret)
+    errx(1, "out of memory");
 	return ret;
+}
+
+#endif
+
+#ifndef HAVE_MALLOCF
+
+void* mallocf(size_t size)
+{
+  void* ret = malloc(size);
+  if(!ret)
+    errx(1, "out of memory");
+  return ret;
 }
 
 #endif

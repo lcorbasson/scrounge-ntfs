@@ -34,4 +34,10 @@ void scroungeUsingRaw(partitioninfo* pi);
 void setFileAttributes(fchar_t* filename, uint32 flags);
 void setFileTime(fchar_t* filename, uint64* created, uint64* accessed, uint64* modified);
 
+int compareFileData(int f, void* data, size_t length);
+
+#ifdef _DEBUG
+  extern bool g_verifyMode;
+#endif
+
 #endif /* __SCROUNGE_H__ */

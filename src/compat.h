@@ -192,6 +192,10 @@ void vwarnx(const char *fmt, va_list ap);
 void* reallocf(void* p, size_t sz);
 #endif
 
+#ifndef HAVE_MALLOCF
+void* mallocf(size_t sz);
+#endif
+
 /* Some number conversion stuff */
 #include <wchar.h>
 
@@ -223,7 +227,7 @@ void* reallocf(void* p, size_t sz);
 
 #ifdef _WIN32
 
-  #ifdef SIZEOF_WHCHAR_T != 2
+  #if SIZEOF_WHCHAR_T != 2
     #error Incompatible size of wchar_t
   #endif
 

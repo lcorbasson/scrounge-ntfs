@@ -46,7 +46,7 @@ ntfs_attribheader* ntfs_searchattribute(byte* location, uint32 attrType, byte* e
 	return NULL;
 }
 
-byte* ntfs_getattributelist(ntfs_recordheader* record)
+byte* ntfs_getattributeheaders(ntfs_recordheader* record)
 {
   byte* location = (byte*)record;
   ASSERT(record->offAttrs != 0);
@@ -57,7 +57,7 @@ byte* ntfs_getattributelist(ntfs_recordheader* record)
 
 ntfs_attribheader* ntfs_findattribute(ntfs_recordheader* record, uint32 attrType, byte* end)
 {
-	byte* location = ntfs_getattributelist(record);
+	byte* location = ntfs_getattributeheaders(record);
 	return ntfs_searchattribute(location, attrType, end, false);
 }
 

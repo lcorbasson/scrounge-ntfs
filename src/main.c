@@ -70,6 +70,10 @@ usage: scrounge [-m mftoffset] [-c clustersize] [-o outdir] disk start end  \n\
 /* Forward decls */
 void usage();
 
+#ifdef _DEBUG
+bool g_verifyMode = false;
+#endif
+
 int main(int argc, char* argv[])
 {
   int ch = 0;
@@ -88,9 +92,9 @@ int main(int argc, char* argv[])
   pi.cluster = 8;
 
 #ifdef _WIN32
-  while((ch = getopt(argc, argv, "c:d:hlm:o:s")) != -1)
+  while((ch = getopt(argc, argv, "c:d:hlm:o:sv")) != -1)
 #else
-  while((ch = getopt(argc, argv, "c:hlm:o:s")) != -1)
+  while((ch = getopt(argc, argv, "c:hlm:o:sv")) != -1)
 #endif
   {
     switch(ch)
@@ -124,12 +128,6 @@ int main(int argc, char* argv[])
       }
       break;
 #endif
-
-    /* help mode */
-    case '?':
-    case 'h':
-      usage();
-      break;
 
     /* list mode */
     case 'l':
@@ -171,6 +169,15 @@ int main(int argc, char* argv[])
       }
       break;
 
+#ifdef _DEBUG
+    case 'v':
+      g_verifyMode = true;
+      break;
+#endif
+
+    /* help mode */
+    case '?':
+    case 'h':
     default:
       usage();
       break;

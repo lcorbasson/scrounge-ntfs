@@ -200,3 +200,5 @@
 
 /* Define to `unsigned' if <sys/types.h> does not define. */
 /* #undef size_t */
+
+#define SIZEOF_WHCHAR_T 2

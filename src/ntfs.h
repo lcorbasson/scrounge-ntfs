@@ -158,8 +158,10 @@ ntfs_attribnonresident;
 
 #ifdef FC_WIDE
 #define kNTFS_MFTName           L"$MFT"
+#define kNTFS_SysPrefix         L'$'
 #else
 #define kNTFS_MFTName           "$MFT"
+#define kNTFS_SysPrefix         '$'
 #endif
 
 typedef struct _ntfs_attribfilename
@@ -196,7 +198,7 @@ ntfs_attriblistrecord;
 
 ntfs_attribheader* ntfs_findattribute(ntfs_recordheader* record, uint32 attrType, byte* end);
 ntfs_attribheader* ntfs_nextattribute(ntfs_attribheader* attrib, uint32 attrType, byte* end);
-byte* ntfs_getattributelist(ntfs_recordheader* record);
+byte* ntfs_getattributeheaders(ntfs_recordheader* record);
 byte* ntfs_getattributedata(ntfs_attribresident* attrib, byte* end);
 
 bool ntfs_isbetternamespace(byte n1, byte n2);

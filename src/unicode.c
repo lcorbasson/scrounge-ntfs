@@ -19,8 +19,7 @@ char* unicode_transcode16to8(const ntfs_char* src, size_t len)
 
   /* Allocate 1.25 times the length initially */
   alloc = len + (len / 4) + 1;
-  ret = (char*)malloc(alloc * sizeof(char));
-  if(!ret) return NULL;
+  ret = (char*)mallocf(alloc * sizeof(char));
 
   c = src;
   e = c + len;
@@ -31,8 +30,7 @@ char* unicode_transcode16to8(const ntfs_char* src, size_t len)
     if(pos + 4 >= alloc)
     {
       alloc += (len / 2) + 1;
-      if(!(ret = (char*)reallocf(ret, alloc * sizeof(char))))
-        return NULL;
+      ret = (char*)reallocf(ret, alloc * sizeof(char));
     }
 
     /* Encode as one character */
