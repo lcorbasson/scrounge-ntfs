@@ -147,7 +147,8 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
     uint64 parentSector;
     uint64 dataSector;
     uint16 rename = 0;
-    uint64 fileSize;
+    uint64 dataSize = 0;       /* Length of initialized file data */
+    uint64 sparseSize = 0;     /* Length of sparse data following */
     uint32 i;
     bool haddata = false;
     uint32 num;
@@ -297,11 +298,17 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
         if(attrhead->bNonResident)
         {
           nonres = (ntfs_attribnonresident*)attrhead;
-          fileSize = nonres->cbAttribData;
+
+          if(nonres->cbInitData > nonres->cbAttribData)
+            RETWARNX("invalid file length.");
+
+          dataSize = nonres->cbInitData;
+          sparseSize = nonres->cbAttribData - nonres->cbInitData;
         }
         else
         {
-          fileSize = ntfsx_attribute_getresidentsize(attribdata);
+          dataSize = ntfsx_attribute_getresidentsize(attribdata);
+          sparseSize = 0;
         }
       }
 
@@ -327,7 +334,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
           if(write(ofile, data, length) != (int32)length)
             RETWARN("couldn't write data to output file");
 
-        fileSize -= length;
+        dataSize -= length;
       }
 
       /* For non resident data it's a bit more involved */
@@ -348,7 +355,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
              * data runs mapped for a file, so just cut out 
              * when that's the case 
              */
-            if(fileSize == 0)
+            if(dataSize == 0)
               break;
 
             /* Sparse clusters we just write zeros */
@@ -356,12 +363,12 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
             {
               memset(cluster.data, 0, cluster.size);
 
-              for(i = 0; i < datarun->length && fileSize; i++)
+              for(i = 0; i < datarun->length && dataSize; i++)
               {
                 num = cluster.size;
 
-                if(fileSize < 0xFFFFFFFF && num > (uint32)fileSize)
-                  num = (uint32)fileSize;
+                if(dataSize < 0xFFFFFFFF && num > (uint32)dataSize)
+                  num = (uint32)dataSize;
 
 #ifdef _DEBUG
                 if(g_verifyMode)
@@ -374,7 +381,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
                   if(write(ofile, cluster.data, num) != (int32)num)
                     err(1, "couldn't write to output file: " FC_PRINTF, basics.filename);
 
-                fileSize -= num;
+                dataSize -= num;
               }
             }
 
@@ -389,9 +396,9 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
                       CLUSTER_TO_SECTOR(*pi, datarun->cluster + datarun->length));
               }
 
-              for(i = 0; i < datarun->length && fileSize; i++)
+              for(i = 0; i < datarun->length && dataSize; i++)
               {
-                num = min(cluster.size, (uint32)fileSize);
+                num = min(cluster.size, (uint32)dataSize);
                 dataSector = CLUSTER_TO_SECTOR(*pi, (datarun->cluster + i));
 
                 if(!ntfsx_cluster_read(&cluster, pi, dataSector, pi->device))
@@ -408,7 +415,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
                   if(write(ofile, cluster.data, num) != (int32)num)
                     err(1, "couldn't write to output file: " FC_PRINTF, basics.filename);
 
-                fileSize -= num;
+                dataSize -= num;
               }
             }
           }
@@ -423,15 +430,48 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
       attribdata = NULL;
 
       /* Cut out when there's extra clusters allocated */
-      if(fileSize == 0)
+      if(dataSize == 0)
         break;
     }
 
     if(!haddata)
       RETWARNX("invalid mft record. no data attribute found");
 
-		if(fileSize != 0)
+		if(dataSize != 0)
       warnx("invalid mft record. couldn't find all data for file");
+
+    /* 
+     * Now we write blanks for all the sparse non-inited data 
+     * We might be able to just resize the file to the right 
+     * size, but let's go the safe way and write out zeros
+     */
+
+    if(sparseSize > 0)
+    {
+      ntfsx_cluster_reserve(&cluster, pi);
+      memset(cluster.data, 0, cluster.size);
+
+      while(sparseSize > 0)
+      {
+        num = cluster.size;
+
+        if(sparseSize < 0xFFFFFFFF && num > (uint32)sparseSize)
+          num = (uint32)sparseSize;
+
+#ifdef _DEBUG
+        if(g_verifyMode)
+        {
+          if(compareFileData(ofile, cluster.data, num) != 0)
+            RETWARNX("verify failed. read file data wrong.");
+        }
+        else
+#endif
+          if(write(ofile, cluster.data, num) != (int32)num)
+            err(1, "couldn't write to output file: " FC_PRINTF, basics.filename);
+
+        sparseSize -= num;
+      }
+    }
 
     close(ofile);
     ofile = -1;
