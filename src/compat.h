@@ -213,7 +213,6 @@ void* reallocf(void* p, size_t sz);
   #endif
 #endif
 
-
 /*
  * Depending on the OS we use different width characters
  * for file names and file access. Before enabling wide
@@ -223,6 +222,11 @@ void* reallocf(void* p, size_t sz);
  */
 
 #ifdef _WIN32
+
+  #ifdef SIZEOF_WHCHAR_T != 2
+    #error Incompatible size of wchar_t
+  #endif
+
   /* On windows we use UCS2 */
   typedef wchar_t fchar_t;
   #define FC_WIDE 1

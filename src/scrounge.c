@@ -43,7 +43,7 @@ void processRecordFileBasics(partitioninfo* pi, ntfsx_record* record, filebasics
     byte* resident = NULL;
     ntfs_attribfilename* filename;
     byte nameSpace;
-    wchar_t* name;
+    ntfs_char* name;
     size_t len;
 #ifndef FC_WIDE
     char* temp;
@@ -82,7 +82,7 @@ void processRecordFileBasics(partitioninfo* pi, ntfsx_record* record, filebasics
         basics->accessed = filename->timeRead;
 
 				/* File Name */
-        name = (wchar_t*)(((byte*)filename) + sizeof(ntfs_attribfilename));
+        name = (ntfs_char*)(((byte*)filename) + sizeof(ntfs_attribfilename));
         len = filename->cFileName;
         if(len > MAX_PATH)
           len = MAX_PATH;

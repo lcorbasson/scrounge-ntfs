@@ -38,6 +38,7 @@ int printNTFSInfo(int dd, uint64 tblSector)
   size_t sz;
   ntfs_bootsector* boot;
 
+  /* TODO: Check the range and don't print if out of range */
 	pos = SECTOR_TO_BYTES(tblSector);
 
   if(lseek64(dd, pos, SEEK_SET) == -1)
@@ -130,6 +131,7 @@ void scroungeListDrive(char* drive)
   if(dd == -1)
     err(1, "couldn't open drive: %s", drive);
 
+  printf(kPrintData);
   printf(kPrintDrivePath, drive);
   printPartitionInfo(dd, 0);
   close(dd);

@@ -74,7 +74,7 @@ AC_CHECK_HEADERS([stdio.h stddef.h fcntl.h stdlib.h wchar.h assert.h errno.h std
 AC_C_CONST
 AC_TYPE_SIZE_T
 AC_HEADER_TIME
-AC_CHECK_SIZEOF(off_t)
+AC_CHECK_SIZEOF(off_t wchar_t)
 AC_CHECK_TYPES([bool, uint, uint64, uint32, uint16, int64, int32, int16, byte, uint64_t, uint32_t, uint16_t, int64_t, int32_t, int16_t], , , [
   #include <sys/types.h>
   #include <stdint.h>

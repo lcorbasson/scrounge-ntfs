@@ -365,6 +365,18 @@ void ntfsx_mftmap_destroy(ntfsx_mftmap* map)
   }
 }
 
+static void mftmap_expand(ntfsx_mftmap* map, uint32* allocated)
+{
+  if(map->_count >= *allocated)
+  {
+    (*allocated) += 16;
+    map->_blocks = (struct _ntfsx_mftmap_block*)reallocf(map->_blocks, 
+                  (*allocated) * sizeof(struct _ntfsx_mftmap_block));
+    if(!(map->_blocks))
+ 			errx(1, "out of memory");
+  }
+}
+
 bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd)
 {
   bool ret = true;
@@ -377,6 +389,7 @@ bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd)
     uint64 length;
     uint64 firstSector;
     uint32 allocated;
+    uint64 total;
 
     /* TODO: Check here whether MFT has already been loaded */
   
@@ -403,6 +416,9 @@ bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd)
 
     map->_count = 0;
     allocated = 0;
+    mftmap_expand(map, &allocated);
+
+    total = nonres->cbAttribData / kSectorSize;
 
 		/* Now loop through the data run */
 		if(ntfsx_datarun_first(datarun))
@@ -412,14 +428,7 @@ bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd)
         if(datarun->sparse)
           RETWARNBX("invalid mft. sparse data runs");
 
-        if(map->_count >= allocated)
-        {
-          allocated += 16;
-          map->_blocks = (struct _ntfsx_mftmap_block*)reallocf(map->_blocks, 
-                  allocated * sizeof(struct _ntfsx_mftmap_block));
-          if(!(map->_blocks))
-      			errx(1, "out of memory");
-        }
+        mftmap_expand(map, &allocated);
 
         ASSERT(map->info->cluster != 0);
 
@@ -434,8 +443,36 @@ bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd)
         map->_blocks[map->_count].length = length;
         map->_blocks[map->_count].firstSector = firstSector;
         map->_count++;
+
+        /*
+         * In some cases the data runs for the MFT don't specify the entire
+         * MFT file, and so we track the remainder and tack it onto
+         * the last block.
+         */
+        total -= length;
 			} 
 			while(ntfsx_datarun_next(datarun));
+
+    }
+
+    if(total > 0)
+    {
+      if(map->_count == 0)
+      {
+        /*
+         * When no data runs were found we start off right
+         * at the MFT and go for the specified length.
+         */
+        ASSERT(allocated > 0);
+        map->_blocks[0].length = total;
+        map->_blocks[0].firstSector = map->info->mft + map->info->first;
+      }
+
+      else
+      {
+        /* Add the remainder of the missing blocks here */
+        map->_blocks[map->_count - 1].length += total;
+      }
     }
 
     ret = true;

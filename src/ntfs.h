@@ -23,6 +23,9 @@
 #include "usuals.h"
 #include "stddef.h"
 #include "drive.h"
+#include "compat.h"
+
+typedef int16 ntfs_char;
 
 #pragma pack(1)
 
@@ -200,7 +203,7 @@ bool ntfs_isbetternamespace(byte n1, byte n2);
 bool ntfs_dofixups(byte* cluster, uint32 size);
 
 /* TODO: Move these declarations elsewhere */
-char* unicode_transcode16to8(const wchar_t* src, size_t len);
-wchar_t* unicode_transcode8to16(const char* src, wchar_t* out, size_t len);
+char* unicode_transcode16to8(const ntfs_char* src, size_t len);
+ntfs_char* unicode_transcode8to16(const char* src, ntfs_char* out, size_t len);
 
 #endif /* __NTFS_H__ */

@@ -44,7 +44,7 @@ usage: scrounge [-d drive] [-m mftoffset] [-c clustersize] [-o outdir] start end
 #else /* Not WIN32 */
 
 const char kPrintHelp[]       = "\
-usage: scrounge -l                                                   \n\
+usage: scrounge -l disk                                              \n\
   List all drive partition information.                              \n\
                                                                      \n\
 usage: scrounge -s disk                                              \n\
@@ -68,7 +68,7 @@ usage: scrounge [-m mftoffset] [-c clustersize] [-o outdir] disk start end  \n\
 #define MODE_SEARCH   3 
 
 /* Forward decls */
-int usage();
+void usage();
 
 int main(int argc, char* argv[])
 {
@@ -126,6 +126,7 @@ int main(int argc, char* argv[])
 #endif
 
     /* help mode */
+    case '?':
     case 'h':
       usage();
       break;
@@ -171,9 +172,9 @@ int main(int argc, char* argv[])
       break;
 
     default:
-      ASSERT(false);
+      usage();
       break;
-    }
+    };
 
     if(mode != MODE_SCROUNGE && mode != 0)
       break;
@@ -261,7 +262,7 @@ int main(int argc, char* argv[])
   return 0;
 }
 
-int usage()
+void usage()
 {
   fprintf(stderr, "%s", kPrintHelp);
   exit(2);
