@@ -17,11 +17,6 @@
  * Send bug reports to: <nielsen@memberwebs.com>
  */
 
-#include <io.h>
-#include <stdio.h>
-#include <malloc.h>
-#include <string.h>
-
 #include "scrounge.h"
 #include "memref.h"
 #include "ntfs.h"

@@ -17,12 +17,7 @@
  * Send bug reports to: <nielsen@memberwebs.com>
  */
 
-#include <io.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
+#include "usuals.h"
 #include "scrounge.h"
 #include "ntfs.h"
 #include "ntfsx.h"

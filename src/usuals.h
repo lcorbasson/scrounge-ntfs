@@ -20,18 +20,33 @@
 #ifndef __USUALS_H__
 #define __USUALS_H__
 
-#include "debug.h"
-#include "compat.h"
+#include <sys/types.h>
+
+#ifdef _WIN32
+  #include <../config.win32.h>
+#else
+  #include <../config.h>
+#endif
+
+#ifdef HAVE_IO_H
+#include <io.h>
+#endif
+
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 
-typedef unsigned __int64 uint64;
-typedef unsigned long uint32;
-typedef unsigned short uint16;
-typedef unsigned char byte;
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
 
-typedef signed __int64 int64;
-typedef signed long int32;
-typedef signed short int16;
+#ifdef _WIN32
+#include <malloc.h>
+#endif
+
+#include "debug.h"
+#include "compat.h"
 
 #ifndef NULL
 #define NULL 0
@@ -45,7 +60,6 @@ typedef signed short int16;
 
 #define HIGHDWORD(i64)	(DWORD)((i64) >> 32)
 #define LOWDWORD(i64) (DWORD)((i64) & 0xFFFFFFFF)
-
 
 #define INTERSECTS(b1, e1, b2, e2) \
 	((b1) < (e2) && (e1) > (b2))

@@ -83,6 +83,103 @@ typedef unsigned int uint;
 #define HAVE_UINT
 #endif
 
+#ifndef HAVE_UINT64
+  #ifdef _WIN32
+    typedef unsigned __int64 uint64;
+  #else
+    #ifdef HAVE_64BITLONGLONG
+      typedef unsigned long long uint64;
+    #else
+      #ifdef HAVE_64BITLONG
+        typedef unsigned long uint64;
+      #else
+        #error ERROR: Must have a compiler that can handle 64 bit integers
+      #endif
+    #endif
+  #endif
+#endif
+
+#ifndef HAVE_UINT32
+  #ifdef _WIN32
+    typedef unsigned __int32 uint32;
+  #else
+    #ifdef HAVE_32BITLONG
+      typedef unsigned long uint32;
+    #else
+      #ifdef HAVE_32BITINT
+        typedef unsigned int uint32;
+      #else
+        #error ERROR: Couldn't find a 32 bit integer to use
+      #endif
+    #endif
+  #endif
+#endif
+
+#ifndef HAVE_UINT16
+  #ifdef _WIN32
+    typedef unsigned __int16 uint16;
+  #else
+    #ifdef HAVE_16BITSHORT
+      typedef unsigned short uint16;
+    #else
+      #ifdef HAVE_16BITINT
+        typedef unsigned int uint16;
+      #else
+        #error ERROR: Couldn't find a 16 bit integer to use
+      #endif
+    #endif
+  #endif
+#endif
+
+#ifndef HAVE_INT64
+  #ifdef _WIN32
+    typedef signed __int64 int64;
+  #else
+    #ifdef HAVE_64BITLONGLONG
+      typedef signed long long int64;
+    #else
+      #ifdef HAVE_64BITLONG
+        typedef signed long int64;
+      #else
+        #error ERROR: Must have a compiler that can handle 64 bit integers
+      #endif
+    #endif
+  #endif
+#endif
+
+#ifndef HAVE_INT32
+  #ifdef _WIN32
+    typedef signed __int32 int32;
+  #else
+    #ifdef HAVE_32BITLONG
+      typedef signed long int32;
+    #else
+      #ifdef HAVE_32BITINT
+        typedef signed int int32;
+      #else
+        #error ERROR: Couldn't find a 32 bit integer to use
+      #endif
+    #endif
+  #endif
+#endif
+
+#ifndef HAVE_INT16
+  #ifdef _WIN32
+    typedef signed __int16 int16;
+  #else
+    #ifdef HAVE_16BITSHORT
+      typedef signed short int16;
+    #else
+      #ifdef HAVE_16BITINT
+        typedef signed int int16;
+      #else
+        #error ERROR: Couldn't find a 16 bit integer to use
+      #endif
+    #endif
+  #endif
+#endif
+
+
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif

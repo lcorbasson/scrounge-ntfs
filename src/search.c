@@ -18,7 +18,7 @@
  */
 
 
-#include <stdio.h>
+#include "usuals.h"
 #include "drive.h"
 
 void scroungeSearch(partitioninfo* pi)

@@ -17,12 +17,6 @@
  * Send bug reports to: <nielsen@memberwebs.com>
  */
 
-#include <io.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <string.h>
-#include <stdio.h>
-
 #include "usuals.h"
 #include "drive.h"
 #include "ntfs.h"

@@ -17,15 +17,8 @@
  * Send bug reports to: <nielsen@memberwebs.com>
  */
 
-#include <sys/types.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
 #include "compat.h"
-
-#ifdef HAVE_STRING_H
-#include <string.h>
-#endif
+#include "usuals.h"
 
 /*
  * We need to get a better check for this one.
