@@ -40,7 +40,6 @@ AC_INIT(scrounge-ntfs, 0.8.1, nielsen@memberwebs.com)
 AM_INIT_AUTOMAKE(scrounge-ntfs, 0.8.1)
 
 LDFLAGS="$LDFLAGS -L/usr/local/lib"
-CPPFLAGS="$CPPFLAGS -I/usr/local/include"
 CFLAGS="$CFLAGS -I/usr/local/include"
 
 AC_CONFIG_SRCDIR([src/scrounge.c])
@@ -52,13 +51,23 @@ AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
 
+# Debug mode
+AC_ARG_ENABLE(debug,
+	    AC_HELP_STRING([--enable-debug],
+	    [Compile binaries in debug mode]))
+
+if test "$enable_debug" = "yes"; then
+  CFLAGS="$CFLAGS -g -O0 -D_DEBUG=1"
+  echo "enabling debug compile mode"
+fi
+
 # Check for libraries
 
 # Checks for header files.
 AC_HEADER_STDC
+AC_CHECK_HEADERS([string.h io.h unistd.h err.h malloc.h sys/time.h stdint.h])
 AC_CHECK_HEADERS([stdio.h stddef.h fcntl.h stdlib.h wchar.h assert.h errno.h stdint.h stdarg.h], ,
 		[echo "ERROR: Required C header missing"; exit 1])
-AC_CHECK_HEADERS([string.h io.h unistd.h err.h malloc.h sys/time.h stdint.h])
 
 
 # Checks for typedefs, structures, and compiler characteristics.

@@ -1,0 +1,5 @@
+Makefile
+Makefile.in
+scrounge-ntfs
+*.o
+.deps
