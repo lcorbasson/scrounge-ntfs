@@ -43,16 +43,6 @@
 #include <stdarg.h>
 #endif
 
-
-#ifndef HAVE_STAT
-#ifdef _WIN32
-#define S_IFDIR _S_IFDIR
-#define HAVE_STAT
-#else
-#error ERROR: Must have a working 'stat' function
-#endif
-#endif
-
 #ifndef HAVE_GETCWD
 #ifdef _WIN32
 #include <direct.h>
@@ -73,44 +63,11 @@
 #endif
 #endif
 
-#ifndef HAVE_TOLOWER
-int tolower(int c);
-#endif
-
-#ifndef HAVE_STRDUP
-char* strdup(const char* str);
-#endif
-
-#ifndef HAVE_STRNDUP
-char* strndup(const char* str, size_t cnt);
-#endif
-
-#ifndef HAVE_STRCASESTR
-char* strcasestr(const char* big, const char* little);
-#endif
-
-#ifndef HAVE_STRCASECMP
-#ifdef HAVE_STRICMP
-#define strcasecmp stricmp
-#else
-#error ERROR: Must have either 'strcasecmp' or 'stricmp'
-#endif
-#endif
-
-#ifndef HAVE_STRCASECMP
-#ifdef HAVE_STRICMP
-#define strncasecmp strnicmp
-#else
-#error ERROR: Must have either 'strncasecmp' or 'strnicmp'
-#endif
-#endif
-
-
 #ifndef NULL
 #define NULL	(void*)0
 #endif
 
-#ifndef __cplusplus
+#ifndef HAVE_BOOL
 typedef unsigned char bool;
 #define false	0x00
 #define true	0x01
@@ -124,30 +81,6 @@ typedef unsigned char byte;
 #ifndef HAVE_UINT
 typedef unsigned int uint;
 #define HAVE_UINT
-#endif
-
-#ifndef HAVE_STRLCPY
-void strlcpy(char* dest, const char* src, size_t count);
-#endif
-
-#ifndef HAVE_STRLCAT
-void strlcat(char* dest, const char* src, size_t count);
-#endif
-
-#ifndef HAVE_VSNPRINTF
-
-#ifdef _WIN32
-#define vsnprintf _vsnprintf
-#define HAVE_VSNPRINTF
-#else
-#ifndef HAVE_VASPRINTF
-#error ERROR: Must have a working 'vsnprintf' or 'vasprintf' function
-#endif
-#endif
-#endif
-
-#ifndef HAVE_VASPRINTF
-int vasprintf(char** ret, const char* format, va_list vl);
 #endif
 
 #ifdef HAVE_UNISTD_H
@@ -182,4 +115,139 @@ void vwarnx(const char *fmt, va_list ap);
 void* reallocf(void* ptr, size_t size);
 #endif
 
+/* Some number conversion stuff */
+
+#ifndef HAVE_ITOW
+  #ifdef _WIN32
+    #define itow _itow
+    #define HAVE_ITOW 1
+  #else
+    wchar_t itow(int v, wchar_t* s, int r);
+  #endif
 #endif
+
+#ifndef HAVE_ITOA
+  #ifdef _WIN32
+    #define itoa _itoa
+    #define HAVE_ITOA 1
+  #else
+    char itoa(int v, char* s, int r);
+  #endif
+#endif
+
+
+/*
+ * Depending on the OS we use different width characters
+ * for file names and file access. Before enabling wide
+ * file access for an OS the printf needs to be able to
+ * handle wide chars (ie: %S) and there should be wide
+ * char file access functions
+ */
+
+#ifdef _WIN32
+  /* On windows we use UCS2 */
+  typedef wchar_t fchar_t;
+  #define FC_WIDE 1
+  #define FC_PRINTF "%S"
+#else
+  /* Everywhere else we use UTF-8 */
+  typedef char fchar_t;
+  #undef FC_WIDE
+  #define FC_PRINTF "%s"
+#endif
+
+#ifdef FC_WIDE
+
+  /* An OS that handles wide char file access */
+
+  #ifdef HAVE_WOPEN
+    #define fc_open wopen
+  #else
+    #ifdef _WIN32
+      #define fc_open _wopen
+    #else
+      #error Set for wide file access, but no wide open
+    #endif
+  #endif
+
+  #ifdef HAVE_WCHDIR
+    #define fc_chdir wchdir
+  #else
+    #ifdef _WIN32
+      #define fc_chdir _wchdir
+    #else
+      #error Set for wide file access but no wide chdir
+    #endif
+  #endif
+
+  #ifdef HAVE_WMKDIR
+    #define fc_mkdir wmkdir
+  #else
+    #ifdef _WIN32
+      #define fc_mkdir _wmkdir
+    #else
+      #error Set for wide file access but no wide mkdir
+    #endif
+  #endif
+
+  #ifdef HAVE_WGETCWD
+    #define fc_getcwd wgetcwd
+  #else
+    #ifdef _WIN32
+      #define fc_getcwd _wgetcwd
+    #else
+      #error Set for wide file access but no wide getcwd
+    #endif
+  #endif
+
+  #define fcscpy wcscpy
+  #define fcscat wcscat
+  #define fcsncpy wcsncpy
+  #define fcslen wcslen
+  #define fcscmp wcscmp
+  #define itofc itow
+
+  #define FC_DOT L"."
+
+#else
+
+  /* OSs without wide char file access */
+
+  #define fc_open open
+  #define fc_chdir chdir
+  #define fc_mkdir mkdir
+  #define fc_getcwd getcwd
+
+  #define fcscpy strcpy
+  #define fcscat strcat
+  #define fcslen strlen
+  #define fcscmp strcmp
+  #define itofc itoa
+
+  #define FC_DOT "."
+
+#endif
+
+
+
+/* 64 bit file handling stuff */
+
+#ifndef HAVE_LSEEK64
+  #ifdef _WIN32
+    #define lseek64 _lseeki64
+  #else
+    #ifdef HAVE_64BITOFFT
+      #define lseek64 lseek
+    #else
+      #error ERROR: Must have a working 64 bit seek function
+    #endif
+  #endif
+#endif
+
+#include <fnctl.h>
+#ifdef O_LARGEFILE
+  #define OPEN_LARGE_OPTS O_LARGEFILE
+#else
+  #define OPEN_LARGE_OPTS 0
+#endif
+

@@ -42,12 +42,13 @@ void addLocationLock(drivelocks* locks, uint64 beg, uint64 end)
 	if(locks->_count <= locks->_current)
 	{
 		locks->_count += 0x400;
-		locks->_locks = (struct drivelock*)realloc(locks->_locks, sizeof(struct drivelock) * locks->_count);
-	}
+		locks->_locks = (struct drivelock*)reallocf(locks->_locks, sizeof(struct drivelock) * locks->_count);
+  
+    if(!locks->_locks)
+      errx(1, "out of memory");
+  }
 
 	/* TODO: Implement a more efficient method here! */
-  /* TODO: What happens when the above memory allocation fails? */
-
 	if(locks->_locks)
 	{
 		/* Go through and check for a current lock we can tag onto */
@@ -114,80 +115,82 @@ const size_t kRefSig = 0x1F2F3F4F;
 void* _refalloc_dbg(size_t sz)
 {
 	/* Allocate extra counter value before memory */
-	size_t* pMem = (size_t*)malloc(sz * sizeof(size_t) * 2);
+	size_t* mem = (size_t*)malloc(sz * sizeof(size_t) * 2);
 
-	if(pMem)
+	if(mem)
 	{
-		pMem[0] = kRefSig;
-		pMem[1] = 1;
-		return pMem + 2;
+		mem[0] = kRefSig;
+		mem[1] = 1;
+		return mem + 2;
 	}
 
-	return pMem;
+	return mem;
 }
 #endif 
 
 void* _refalloc(size_t sz)
 {
 	/* Allocate extra counter value before memory */
-	size_t* pMem = (size_t*)malloc(sz * sizeof(size_t) * 1);
+	size_t* mem = (size_t*)malloc(sz * sizeof(size_t) * 1);
 
-	if(pMem)
+	if(mem)
 	{
-		pMem[0] = 1;
-		return pMem + 1;
+		mem[0] = 1;
+		return mem + 1;
 	}
 
-	return pMem;
+	return mem;
 }
 
 #ifdef _DEBUG
-void* _refadd_dbg(void* pBuff)
+void* _refadd_dbg(void* buf)
 {
-	if(pBuff)
+	if(buf)
 	{
 		/* Increment the counter value */
-		size_t* pMem = (size_t*)pBuff - 2;
-		assert(pMem[0] == kRefSig);
-		pMem[1]++;
+		size_t* mem = (size_t*)buf - 2;
+		assert(mem[0] == kRefSig);
+		mem[1]++;
 	}
 
-	return pBuff;
+	return buf;
 }
 #endif
 
-void* _refadd(void* pBuff)
+void* _refadd(void* buf)
 {
-	if(pBuff)
+	if(buf)
 		/* Increment the counter value */
-		((size_t*)pBuff)[-1]++;
+		((size_t*)buf)[-1]++;
 
-	return pBuff;
+	return buf;
 }
 
 #ifdef _DEBUG
-void _refrelease_dbg(void* pBuff)
+void _refrelease_dbg(void* buf)
 {
-	if(pBuff)
+	if(buf)
 	{
 		/* Decrement the counter value */
-		size_t* pMem = (size_t*)pBuff - 2;
-		assert(pMem[0] == kRefSig);
+		size_t* mem = (size_t*)buf - 2;
+		assert(mem[0] == kRefSig);
 
-		if(!--pMem[1])
-			free(pMem);
+		if(!--mem[1])
+			free(mem);
 	}
 }
 #endif
 
-void _refrelease(void* pBuff)
+void _refrelease(void* buf)
 {
-	if(pBuff)
+	if(buf)
 	{
 		/* Decrement the counter value */
-		size_t* pMem = (size_t*)pBuff - 1;
+		size_t* mem = (size_t*)buf - 1;
 
-		if(!--pMem[0])
-			free(pMem);
+		if(!--mem[0])
+			free(mem);
 	}
 }
+
+

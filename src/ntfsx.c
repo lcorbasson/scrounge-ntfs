@@ -420,7 +420,7 @@ bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd)
         if(map->_count >= allocated)
         {
           allocated += 16;
-          map->_blocks = (struct _ntfsx_mftmap_block*)realloc(map->_blocks, 
+          map->_blocks = (struct _ntfsx_mftmap_block*)reallocf(map->_blocks, 
                   allocated * sizeof(struct _ntfsx_mftmap_block));
           if(!(map->_blocks))
       			errx(1, "out of memory");

@@ -27,139 +27,6 @@
 #include <string.h>
 #endif
 
-#ifndef HAVE_TOLOWER
-int tolower(int c)
-{
-	if('A' <= c && c <= 'Z')
-		c += 'a' - 'A';
-	return c;
-}
-#define HAVE_TOLOWER
-#endif
-
-
-#ifndef HAVE_STRDUP
-
-#ifndef HAVE_MALLOC
-#error Need a working malloc.
-#endif
-
-char* strdup(const char* str)
-{
-	char* dup = (char*)malloc((strlen(str) + 1) * sizeof(char));
-	if(dup)
-		strcpy(dup, str);
-	return dup;
-}
-#define HAVE_STRDUP
-#endif
-
-
-#ifndef HAVE_STRNDUP
-#ifdef HAVE_MEMORY_H
-#include <memory.h>
-#endif
-char* strndup(const char* str, size_t cnt)
-{
-	char* buff = malloc(sizeof(char) * (cnt + 1));
-	if(buff)
-	{
-		memcpy(buff, str, sizeof(char) * cnt);
-		buff[cnt] = 0;
-	}
-	return buff;
-}
-#endif
-
-
-#ifndef HAVE_STRCASESTR
-char* strcasestr(const char* buff, const char* str)
-{
-	const char* ptr = buff;
-
-    while (*ptr != 0x00)
-	{
-        const char* one = ptr;
-        const char* two = str;
-
-        while (tolower(*one) == tolower(*two))
-		{
-            one++;
-            two++;
-            if (*two == 0x00)
-				return (char*) ptr;
-        }
-        ptr++;
-    }
-    return NULL;
-}
-#endif
-
-#ifndef HAVE_STRLCPY
-
-#ifndef HAVE_STRNCPY
-#error neither strncpy or strlcpy found
-#endif
-
-void strlcpy(char* dest, const char* src, size_t count)
-{
-	strncpy(dest, src, count);
-	dest[count - 1] = 0;
-}
-#endif
-
-#ifndef HAVE_STRLCAT
-
-#ifndef HAVE_STRNCAT
-#error neither strncat or strlcat found
-#endif
-
-void strlcat(char* dest, const char* src, size_t count)
-{
-	strncat(dest, src, count);
-	dest[count - 1] = 0;
-}
-#endif
-
-
-#ifndef HAVE_VASPRINTF
-
-#ifndef HAVE_VSNPRINTF
-#error neither vasprintf or vsnprintf found
-#endif
-
-int vasprintf(char** ret, const char* format, va_list vl)
-{
-	size_t size = 32;
-	int c;
-	*ret = NULL;
-
-	do
-	{
-		/* Double the buffer size for next time around */
-		size += size;
-
-		if(*ret)
-			free(*ret);
-
-		*ret = (char*)malloc(sizeof(char) * size);
-
-		if(!(*ret))
-		{
-			errno = ENOMEM;
-			return -1;
-		}
-
-		c = vsnprintf(*ret, size, format, vl);
-	}
-	while(c < 0);
-
-	return c;
-}
-
-#endif
-
-
 /*
  * We need to get a better check for this one.
  * Basically have to make a variable __progname if none
@@ -424,24 +291,6 @@ void vwarnx(const char *fmt, va_list ap)
 #endif
 
 
-
-#ifndef HAVE_STRLWR
-
-char* strlwr(char *string)
-{
-	char * cp;
-	for (cp=string; *cp; ++cp)
-    {
-		if('A' <= *cp && *cp <= 'Z')
-            *cp += 'a' - 'A';
-    }
-    return(string);
-}
-
-#endif
-
-
-
 #ifndef HAVE_REALLOCF
 
 void* reallocf(void* ptr, size_t size)
@@ -454,4 +303,94 @@ void* reallocf(void* ptr, size_t size)
 	return ret;
 }
 
+#endif
+
+#ifndef HAVE_ITOW
+wchar_t* itow(int val, wchar_t* out, int radix)
+{
+  int mod;
+  wchar_t temp;
+  wchar_t* end = out;
+  wchar_t* beg = out;
+
+  if(val != 0)
+  {
+    /* If negative and decimal*/
+    if(radix == 10 && val < 0)
+      *beg++ = L'-';
+
+    /* Convert in reverse order */
+    while(val != 0)
+    {
+      mod = val % radix;
+      val = val / radix;
+
+      *end++ = (mod < 10) ? L'0' + mod : L'a' + mod - 10;
+    }
+
+    *end-- = 0;
+
+    /* Reverse output string */
+    while(end > beg)
+    {
+      temp = *end;
+      *end = *beg;
+      *beg = temp;
+      ++beg;
+      --end;
+    }
+  }
+  else
+  {
+    beg[0] = L'0';
+    beg[1] = 0;
+  }
+
+  return out;
+}
+#endif
+
+#ifndef HAVE_ITOA
+wchar_t* itow(int val, wchar_t* out, int radix)
+{
+  int mod;
+  wchar_t temp;
+  wchar_t* end = out;
+  wchar_t* beg = out;
+
+  if(val != 0)
+  {
+    /* If negative and decimal*/
+    if(radix == 10 && val < 0)
+      *beg++ = L'-';
+
+    /* Convert in reverse order */
+    while(val != 0)
+    {
+      mod = val % radix;
+      val = val / radix;
+
+      *end++ = (mod < 10) ? L'0' + mod : L'a' + mod - 10;
+    }
+
+    *end-- = 0;
+
+    /* Reverse output string */
+    while(end > beg)
+    {
+      temp = *end;
+      *end = *beg;
+      *beg = temp;
+      ++beg;
+      --end;
+    }
+  }
+  else
+  {
+    beg[0] = L'0';
+    beg[1] = 0;
+  }
+
+  return out;
+}
 #endif

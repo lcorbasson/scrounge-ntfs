@@ -23,8 +23,8 @@
 #ifdef _DEBUG
 
 void* _refalloc_dbg(size_t sz);
-void* _refadd_dbg(void* pBuff);
-void _refrelease_dbg(void* pBuff);
+void* _refadd_dbg(void* buf);
+void _refrelease_dbg(void* buf);
 
 #define refalloc	_refalloc_dbg
 #define refadd		_refadd_dbg
@@ -33,8 +33,8 @@ void _refrelease_dbg(void* pBuff);
 #else
 
 void* _refalloc(size_t sz);
-void* _refadd(void* pBuff);
-void _refrelease(void* pBuff);
+void* _refadd(void* buf);
+void _refrelease(void* buf);
 
 #define refalloc	_refalloc
 #define refadd		_refadd

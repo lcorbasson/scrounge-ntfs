@@ -33,7 +33,7 @@ void makeDriveName(char* driveName, int i)
   wsprintf(driveName, kDriveName, i);
 }
 
-void setFileTime(wchar_t* filename, uint64* created, 
+void setFileTime(fchar_t* filename, uint64* created, 
                   uint64* accessed, uint64* modified)
 {
   FILETIME ftcr;
@@ -49,17 +49,17 @@ void setFileTime(wchar_t* filename, uint64* created,
 	file = CreateFileW(filename, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
   if(file == INVALID_HANDLE_VALUE)
   {
-    warnx("couldn't set file time: %S", filename);
+    warnx("couldn't set file time: " FC_PRINTF, filename);
     return;
   }
 
   if(!SetFileTime(file, &ftcr, &ftac, &ftmd))
-    warnx("couldn't set file time: %S", filename);
+    warnx("couldn't set file time: " FC_PRINTF, filename);
 
   CloseHandle(file);
 }
 
-void setFileAttributes(wchar_t* filename, uint32 flags)
+void setFileAttributes(fchar_t* filename, uint32 flags)
 {
   DWORD attributes;
 
@@ -74,5 +74,5 @@ void setFileAttributes(wchar_t* filename, uint32 flags)
 		attributes |= FILE_ATTRIBUTE_SYSTEM;
 
   if(!SetFileAttributesW(filename, attributes))
-    warnx("couldn't set file attributes: %S", filename);
+    warnx("couldn't set file attributes: " FC_PRINTF, filename);
 }

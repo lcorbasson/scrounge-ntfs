@@ -83,7 +83,9 @@ drive_mbr;
 #define SECTOR_TO_BYTES(sec) ((sec) * kSectorSize)
 #define CLUSTER_SIZE(info) ((info).cluster * kSectorSize)
 
-/* driveName should be MAX_PATH chars long */
-void makeDriveName(char* driveName, int i);
+#ifdef _WIN32
+  /* driveName should be MAX_PATH chars long */
+  void makeDriveName(char* driveName, int i);
+#endif
 
 #endif /* __DRIVE_H__ */

@@ -30,7 +30,7 @@
 
 typedef struct _filebasics
 {
-  wchar_t filename[MAX_PATH + 1];
+  fchar_t filename[MAX_PATH + 1];
   uint64 created;
   uint64 modified;
   uint64 accessed;
@@ -48,6 +48,11 @@ void processRecordFileBasics(partitioninfo* pi, ntfsx_record* record, filebasics
     byte* resident = NULL;
     ntfs_attribfilename* filename;
     byte nameSpace;
+    wchar_t* name;
+    size_t len;
+#ifndef FC_WIDE
+    char* temp;
+#endif
 
     ASSERT(record);
     memset(basics, 0, sizeof(filebasics));
@@ -82,14 +87,35 @@ void processRecordFileBasics(partitioninfo* pi, ntfsx_record* record, filebasics
         basics->accessed = filename->timeRead;
 
 				/* File Name */
-				wcsncpy(basics->filename, (wchar_t*)(((byte*)filename) + sizeof(ntfs_attribfilename)), filename->cFileName);
-				basics->filename[filename->cFileName] = 0;
+        name = (wchar_t*)(((byte*)filename) + sizeof(ntfs_attribfilename));
+        len = filename->cFileName;
+        if(len > MAX_PATH)
+          len = MAX_PATH;
+
+#ifdef FC_WIDE
+        wcsncpy(basics->filename, name, len);
+#else
+        temp = unicode_transcode16to8(basics->filename, len);
+        if(!temp)
+          errx(1, "out of memory");
+
+        len = strlen(temp);
+        if(len > MAX_PATH)
+          len = MAX_PATH;
+        
+        strncpy(basics->filename, temp, len);
+#endif
+
+        basics->filename[len] = 0;
+
 
 				/* Attributes */
         basics->flags = filename->flags;
 
+
 				/* Parent Directory */
         basics->parent = filename->refParent & 0xFFFFFFFFFFFF;
+
 
 				/* Namespace */
 				nameSpace = filename->nameSpace;
@@ -122,7 +148,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, int level)
     uint64 fileSize;
     uint32 i;
     uint32 num;
-    wchar_t filename2[MAX_PATH + 1];
+    fchar_t filename2[MAX_PATH + 1];
     ntfs_attribheader* attrhead;
     ntfs_attribnonresident* nonres;
 
@@ -151,7 +177,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, int level)
     }
 
     /* If it's the root folder then return */
-    if(!wcscmp(basics.filename, L"."))
+    if(!fcscmp(basics.filename, FC_DOT))
       RETURN;
 
     /* Process parent folders if available */
@@ -163,30 +189,28 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, int level)
         parentSector = ntfsx_mftmap_sectorforindex(pi->mftmap, basics.parent);
 
         if(parentSector == kInvalidSector)
-          warnx("invalid parent directory for file: %S", basics.filename);
+          warnx("invalid parent directory for file: " FC_PRINTF, basics.filename);
         else
           processMFTRecord(pi, parentSector, level + 1);
       }
     }
 
-    printf(level == 0 ? "\\%S\n" : "\\%S", basics.filename);
+    printf(level == 0 ? "\\" FC_PRINTF "\n" : "\\" FC_PRINTF, basics.filename);
 
     /* Directory handling: */
     if(header->flags & kNTFS_RecFlagDir)
     {
       /* Try to change to the directory */
-      /* PORT: Wide character file functions */
-      if(_wchdir(basics.filename) == -1)
+      if(wchdir(basics.filename) == -1)
       {
-        /* PORT: Wide character file functions */
-        if(_wmkdir(basics.filename) == -1)
+        if(wmkdir(basics.filename) == -1)
         {
-          warnx("couldn't create directory '%S' putting files in parent directory", basics.filename);
+          warnx("couldn't create directory '" FC_PRINTF "' putting files in parent directory", basics.filename);
         }
         else
         {
           setFileAttributes(basics.filename, basics.flags);
-          _wchdir(basics.filename);
+          wchdir(basics.filename);
         }
       }
 
@@ -195,32 +219,31 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, int level)
 
 
     /* Normal file handling: */
-    /* PORT: Wide character file functions */
-    outfile = _wopen(basics.filename, _O_BINARY | _O_CREAT | _O_EXCL | _O_WRONLY);
+    outfile = wopen(basics.filename, _O_BINARY | _O_CREAT | _O_EXCL | _O_WRONLY);
   
-    wcsncpy(filename2, basics.filename, MAX_PATH);
+    fcsncpy(filename2, basics.filename, MAX_PATH);
     filename2[MAX_PATH] = 0;
 
     while(outfile == -1 && errno == EEXIST && rename < 0x1000)
     {
-      if(wcslen(basics.filename) + 7 >= MAX_PATH)
+      if(fcslen(basics.filename) + 7 >= MAX_PATH)
       {
-        warnx("file name too long on duplicate file: %S", basics.filename);
+        warnx("file name too long on duplicate file: " FC_PRINTF, basics.filename);
         goto cleanup;
       }
 
-      wcscpy(basics.filename, filename2);
-      wcscat(basics.filename, L".");
+      fcscpy(basics.filename, filename2);
+      fcscat(basics.filename, L".");
 
-      _itow(rename, basics.filename + wcslen(basics.filename), 10);
+      itofc(rename, basics.filename + fcslen(basics.filename), 10);
       rename++;
 
-      outfile = _wopen(basics.filename, _O_BINARY | _O_CREAT | _O_EXCL | _O_WRONLY);
+      outfile = fc_open(basics.filename, _O_BINARY | _O_CREAT | _O_EXCL | _O_WRONLY);
     }
 
     if(outfile == -1)
     {
-      warnx("couldn't open output file: %S", basics.filename);
+      warnx("couldn't open output file: " FC_PRINTF, basics.filename);
       goto cleanup;
     }
 
@@ -282,7 +305,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, int level)
                 num = (uint32)fileSize;
 
               if(write(outfile, cluster.data, num) != (int32)num)
-                err(1, "couldn't write to output file: %S", basics.filename);
+                err(1, "couldn't write to output file: " FC_PRINTF, basics.filename);
 
               fileSize -= num;
             }
@@ -308,7 +331,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, int level)
                 err(1, "couldn't read sector from disk");
 
               if(write(outfile, cluster.data, num) != (int32)num)
-                err(1, "couldn't write to output file: %S", basics.filename);
+                err(1, "couldn't write to output file: " FC_PRINTF, basics.filename);
 
               fileSize -= num;
             }
@@ -378,7 +401,7 @@ void scroungeMFT(partitioninfo* pi, ntfsx_mftmap* map)
 
   processRecordFileBasics(pi, record, &basics);
 
-  if(wcscmp(basics.filename, kNTFS_MFTName))
+  if(fcscmp(basics.filename, kNTFS_MFTName))
     errx(2, "invalid mft. wrong record");
 
   fprintf(stderr, "[Processing MFT...]\n");
@@ -398,7 +421,7 @@ void scroungeMFT(partitioninfo* pi, ntfsx_mftmap* map)
 void scroungeUsingMFT(partitioninfo* pi)
 {
 	uint64 numRecords = 0;
-	char dir[MAX_PATH];
+	fchar_t dir[MAX_PATH];
   ntfsx_mftmap map;
   uint64 length;
   uint64 sector;
@@ -407,7 +430,7 @@ void scroungeUsingMFT(partitioninfo* pi)
   fprintf(stderr, "[Scrounging via MFT...]\n");
 
 	/* Save current directory away */
-	getcwd(dir, MAX_PATH);
+	fc_getcwd(dir, MAX_PATH);
 
   /* Get the MFT map ready */
   memset(&map, 0, sizeof(map));
@@ -435,7 +458,7 @@ void scroungeUsingMFT(partitioninfo* pi)
     processMFTRecord(pi, sector, 0);
 
   	/* Move to right output directory */
-    chdir(dir);
+    fc_chdir(dir);
 	}
 
   pi->mftmap = NULL;
@@ -444,7 +467,7 @@ void scroungeUsingMFT(partitioninfo* pi)
 void scroungeUsingRaw(partitioninfo* pi)
 {
 	byte buffSec[kSectorSize];
-	char dir[_MAX_PATH + 1];
+	fchar_t dir[_MAX_PATH + 1];
   uint64 sec;
   drivelocks locks;
   int64 pos;
@@ -454,7 +477,7 @@ void scroungeUsingRaw(partitioninfo* pi)
   fprintf(stderr, "[Scrounging raw records...]\n");
 
 	/* Save current directory away */
-	getcwd(dir, _MAX_PATH);
+	fc_getcwd(dir, _MAX_PATH);
 
   /* Get the locks ready */
   memset(&locks, 0, sizeof(locks));
@@ -481,6 +504,9 @@ void scroungeUsingRaw(partitioninfo* pi)
       /* Process the record */
       processMFTRecord(pi, sec, 0);
 		}
+
+  	/* Move to right output directory */
+    fc_chdir(dir);
 	}
 
   pi->locks = NULL;

@@ -191,4 +191,8 @@ byte* ntfs_getattributedata(ntfs_attribresident* attrib, byte* end);
 bool ntfs_isbetternamespace(byte n1, byte n2);
 bool ntfs_dofixups(byte* cluster, uint32 size);
 
+/* TODO: Move these declarations elsewhere */
+char* unicode_transcode16to8(const wchar_t* src, size_t len);
+wchar_t* unicode_transcode8to16(const char* src, const wchar_t* out, size_t len);
+
 #endif /* __NTFS_H__ */

@@ -33,6 +33,7 @@ const char kPrintData[]		= "\
 ";
 
 const char kPrintDrive[]		= "\nDrive: %u\n";
+const char kPrintDrivePath[]		= "\nDrive: %s\n";
 const char kPrintDriveInfo[]	= "    %-15u %-15u ";
 const char kPrintNTFSInfo[]		= "%-15u %-15u";
 
@@ -45,8 +46,7 @@ int printNTFSInfo(int dd, uint64 tblSector)
 
 	pos = SECTOR_TO_BYTES(tblSector);
 
-  /* PORT: Windows specific */
-  if(_lseeki64(dd, pos, SEEK_SET) == -1)
+  if(lseek64(dd, pos, SEEK_SET) == -1)
     err(1, "couldn't seek drive");
 
   sz = read(dd, &sector, kSectorSize);
@@ -75,8 +75,7 @@ int printPartitionInfo(int dd, uint64 tblSector)
 
 	pos = SECTOR_TO_BYTES(tblSector);
 
-  /* PORT: Windows specific */
-  if(_lseeki64(dd, pos, SEEK_SET) == -1)
+  if(lseek64(dd, pos, SEEK_SET) == -1)
     err(1, "couldn't seek drive");
 
   sz = read(dd, &mbr, sizeof(drive_mbr));
@@ -120,7 +119,7 @@ void scroungeList()
 	{
     makeDriveName(driveName, i);
 
-    dd = open(driveName, _O_BINARY | _O_RDONLY);
+    dd = open(driveName, _O_BINARY | _O_RDONLY | OPEN_LARGE_OPTS);
     if(dd != -1)
     {
 			printf(kPrintDrive, i);
@@ -128,4 +127,15 @@ void scroungeList()
 			close(dd);
 		}
 	}
+}
+
+void scroungeListDrive(char* drive)
+{
+  int dd = open(driveName, _O_BINARY | _O_RDONLY | OPEN_LARGE_OPTS;
+  if(dd == -1)
+    err(1, "couldn't open drive: %s", driveName);
+
+  printf(kPrintDrivePath, driveName);
+  printPartitionInfo(dd, 0);
+  close(dd);
 }

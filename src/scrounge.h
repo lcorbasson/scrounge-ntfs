@@ -24,11 +24,12 @@
 
 void scroungeSearch(partitioninfo* pi);
 void scroungeList();
+void scroungeListDrive(char* drive);
 void scroungeUsingMFT(partitioninfo* pi);
 void scroungeUsingRaw(partitioninfo* pi);
 
 /* For compatibility */
-void setFileAttributes(wchar_t* filename, uint32 flags);
-void setFileTime(wchar_t* filename, uint64* created, uint64* accessed, uint64* modified);
+void setFileAttributes(fchar_t* filename, uint32 flags);
+void setFileTime(fchar_t* filename, uint64* created, uint64* accessed, uint64* modified);
 
 #endif /* __SCROUNGE_H__ */
