@@ -26,7 +26,17 @@ void scroungeSearch(partitioninfo* pi)
   fprintf(stderr, "[Performing NTFS partition search...]");
   errx(1, "search functionality not implemented yet.");
 
-  /* go through all sectors until we find an MFT record */
-  /* that isn't the MFT mirror */
+  /* 
+   * go through and look for an $MFTMirr file record. First of all
+   * these should be exactly 4096 bytes long. This allows us 
+   * to discover the length of a cluster, using both the data
+   * runs in the $MFTMirr and the cbAllocated.
+   *
+   * Determine if it's the $MFTMirr or $MFT we're looking at
+   * 
+   * Next using this cluster information we can discover the
+   * beginning of the partition, 
+   */
+
 
 }
