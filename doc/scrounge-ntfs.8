@@ -1,0 +1,110 @@
+.\" 
+.\" Copyright (c) 2004, Nate Nielsen
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without 
+.\" modification, are permitted provided that the following conditions 
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above 
+.\"       copyright notice, this list of conditions and the 
+.\"       following disclaimer.
+.\"     * Redistributions in binary form must reproduce the 
+.\"       above copyright notice, this list of conditions and 
+.\"       the following disclaimer in the documentation and/or 
+.\"       other materials provided with the distribution.
+.\"     * The names of contributors to this software may not be 
+.\"       used to endorse or promote products derived from this 
+.\"       software without specific prior written permission.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS 
+.\" FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE 
+.\" COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
+.\" INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
+.\" BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS 
+.\" OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED 
+.\" AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+.\" OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF 
+.\" THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH 
+.\" DAMAGE.
+.\" 
+.\"
+.\" CONTRIBUTORS
+.\"  Nate Nielsen <nielsen@memberwebs.com>
+.\"
+.Dd April, 2004
+.Dt scrounge-ntfs 8
+.Os scrounge-ntfs 
+.Sh NAME
+.Nm scrounge-ntfs
+.Nd helps retrieve data from corrupted NTFS partitions
+.Sh SYNOPSIS
+.Nm
+.Fl l
+.Ar disk
+.Nm 
+.Fl s
+.Ar disk
+.Nm 
+.Op Fl m Ar mftoffset
+.Op Fl c Ar clustersize
+.Op Fl o Ar outdir 
+.Ar disk
+.Ar start
+.Ar end
+.Sh DESCRIPTION
+.Nm 
+is a utility that can rescue data from corrupted NTFS partitions. It 
+writes the files retrieved to another working file system. Certain 
+information about the partition needs to be known in advance. 
+.Pp
+The 
+.Fl l 
+mode is meant to be run in advance of the data corruption, with the 
+output stored away in a file. This allows 
+.Nm
+to recover data reliably. See the 'NOTES' section below for recover
+info when this isn't the case.
+.Sh OPTIONS
+The options are as follows:
+.Bl -tag -width Fl
+.It Fl c
+The cluster size (in sectors). When not specified a default of 8
+is used.
+.It Fl l
+List partition information for a drive. This will only work when
+the partition table for the given drive is intact.
+.It Fl m
+When recovering data this specifies the location of the MFT from 
+the beginning of the partition (in sectors). If not specified then
+no directory information can be used, that is, all rescued files 
+will be written to the same directory.
+.It Fl o
+Directory to put rescued files in. If not specified then files will
+be placed in the current directory.
+.It Fl s
+Search disk for partition information. (Not implemented yet).
+.It disk
+The raw device used to access the disk which contains the NTFS 
+partition to rescue files from. eg: '/dev/hdc' 
+.It start
+The beginning of the NTFS partition (in sectors).
+.It end
+The end of the NTFS partition (in sectors)
+.El
+.Sh NOTES
+If you plan on using this program sucessfully you should prepare
+in advance by storing a copy of the partition information. Use the 
+.Fl l
+option to do this. Eventually searching for disk partition information 
+will be implemented, which will solve this problem.
+.Pp
+When only one partition exists on a disk or you want to rescue the 
+first partition there are ways to guess at the sector sizes and MFT
+location. See the scrounge-ntfs web page for more info:
+.Pp
+http://memberwebs.com/nielsen/software/scrounge/
+.Sh AUTHOR
+.An Nate Nielsen Aq nielsen@memberwebs.com
