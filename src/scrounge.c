@@ -406,7 +406,10 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
                 dataSector = CLUSTER_TO_SECTOR(*pi, (datarun->cluster + i));
 
                 if(!ntfsx_cluster_read(&cluster, pi, dataSector, pi->device))
-                  err(1, "couldn't read sector from disk");
+                {
+                  warn("couldn't read sector from disk");
+                  break;
+                }
 
 #ifdef _DEBUG
                 if(g_verifyMode)
@@ -635,7 +638,10 @@ void scroungeUsingRaw(partitioninfo* pi)
 
     sz = read(pi->device, buffSec, kSectorSize);
     if(sz == -1 || sz != kSectorSize)
-      errx(1, "can't read drive sector");
+    {
+      warn("can't read drive sector");
+      continue;
+    }
 
 		/* Check beginning of sector for the magic signature */
 		if(!memcmp(&magic, &buffSec, sizeof(magic)))

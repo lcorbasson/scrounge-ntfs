@@ -1,3 +1,7 @@
+0.8.6
+ - Don't exit on error reading source drive [Marius Hillenbrand]
+ - Fixed core dump when attribute list, but no MFT loaded [Marius Hillenbrand]
+
 0.8.5
  - Ported to Linux/FreeBSD
  - Support for very fragmented MFTs

@@ -299,7 +299,7 @@ ntfsx_attribute* ntfsx_attrib_enum_list(ntfsx_attrib_enum* attrenum, ntfsx_recor
   /* If we're done */
   if(attrenum->_flags & ATTR_ENUM_DONELIST)
     return NULL;
-
+    
   cluster = ntfsx_record_cluster(record);
   rechead = ntfsx_record_header(record);
 
@@ -323,10 +323,17 @@ ntfsx_attribute* ntfsx_attrib_enum_list(ntfsx_attrib_enum* attrenum, ntfsx_recor
       attrenum->_flags |= ATTR_ENUM_DONELIST;
       return NULL;
     }
+
+    /* We don't do attribute lists when no MFT loaded */
+    if(!record->info->mftmap)
+    {
+      warnx("extended file attributes, but no MFT loaded. skipping");
+      attrenum->_flags |= ATTR_ENUM_DONELIST;
+      return NULL;
+    }
   }
 
   /* This has to be set by now */
-  ASSERT(record->info->mftmap);
   ASSERT(attrenum->_attrhead);
   ASSERT(attrenum->_attrhead->type == kNTFS_ATTRIBUTE_LIST);
 
@@ -454,7 +461,10 @@ bool ntfsx_record_read(ntfsx_record* record, uint64 begSector, int dd)
   ntfs_recordheader* rechead;
 
   if(!ntfsx_cluster_read(&(record->_clus), record->info, begSector, dd))
-    err(1, "couldn't read mft record from drive");
+  {
+    warn("couldn't read mft record from drive");
+    return false;
+  }
 
 	/* Check and validate this record */
 	rechead = ntfsx_record_header(record);
