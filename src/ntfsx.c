@@ -316,7 +316,7 @@ ntfsx_attribute* ntfsx_record_findattribute(ntfsx_record* record, uint32 attrTyp
 				if(atlr->type == attrType)
 				{
 					/* Read in appropriate cluster */
-          mftRecord = ntfsx_mftmap_sectorforindex(record->info->mftmap, atlr->refAttrib & 0xFFFFFFFFFFFFLL);
+          mftRecord = ntfsx_mftmap_sectorforindex(record->info->mftmap, atlr->refAttrib & UL(0xFFFFFFFFFFFF));
 
 					r2 = ntfsx_record_alloc(record->info);
           if(!r2)

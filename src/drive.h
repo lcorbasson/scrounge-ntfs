@@ -23,7 +23,7 @@
 #include "usuals.h"
 
 #define kSectorSize     0x200
-#define kInvalidSector  0xFFFFFFFFFFFFFFFFLL
+#define kInvalidSector  UL(0xFFFFFFFFFFFFFFFF)
 
 struct _ntfsx_mftmap;
 struct _drivelocks;

@@ -23,9 +23,9 @@
 #include <sys/types.h>
 
 #ifdef _WIN32
-  #include <../config.win32.h>
+  #include "config.win32.h"
 #else
-  #include <../config.h>
+  #include "config.h"
 #endif
 
 #ifdef HAVE_IO_H
@@ -70,6 +70,12 @@
 
 #ifndef min
 #define min(a,b)  (((a) < (b)) ? (a) : (b))
+#endif
+
+#ifdef _WIN32
+  #define UL(x)   x
+#else
+  #define UL(x)   x#LL
 #endif
 
 #endif /* __USUALS_H__ */
