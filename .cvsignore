@@ -14,3 +14,5 @@ missing
 mkinstalldirs
 stamp-*
 trash
+.cdtproject
+.project
