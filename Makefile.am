@@ -1,5 +1,5 @@
 
-EXTRA_DIST = BUGS
+# EXTRA_DIST =
 SUBDIRS = src win32 doc
 
 dist-hook:

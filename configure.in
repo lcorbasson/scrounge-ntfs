@@ -86,5 +86,5 @@ AC_CHECK_FUNCS([memset stat strchr strerror sprintf utimes chmod memcmp malloc r
 AC_CHECK_FUNCS([getopt strchr strerror getcwd chdir getopt reallocf itow itoa])
 AC_CHECK_FUNCS([wopen wchdir wmkdir lseek64])
 
-AC_CONFIG_FILES([Makefile src/Makefile win32/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile win32/Makefile doc/Makefile])
 AC_OUTPUT
