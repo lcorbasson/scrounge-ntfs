@@ -175,13 +175,13 @@
 #define PACKAGE_NAME "scrounge-ntfs"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "scrounge-ntfs 0.8.1"
+#define PACKAGE_STRING "scrounge-ntfs 0.8.6"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "scrounge-ntfs"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "0.8.1"
+#define PACKAGE_VERSION "0.8.6"
 
 /* The size of a `off_t', as computed by sizeof. */
 #define SIZEOF_OFF_T 4
@@ -193,7 +193,7 @@
 /* #define TIME_WITH_SYS_TIME 1 */
 
 /* Version number of package */
-#define VERSION "0.8.1"
+#define VERSION "0.8.6"
 
 /* Define to empty if `const' does not conform to ANSI C. */
 /* #undef const */
