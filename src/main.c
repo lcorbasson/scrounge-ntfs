@@ -243,7 +243,7 @@ int main(int argc, char* argv[])
     /* Otherwise it's a raw search */
     else
     {
-      warn("Scrounging via raw search. Directory info will be discarded.");
+      warnx("Scrounging via raw search. Directory info will be discarded.");
       scroungeUsingRaw(&pi);
     }
   }
