@@ -215,7 +215,11 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
         if(!g_verifyMode)
 #endif
         {
-          if(fc_mkdir(basics.filename, DEF_DIR_MODE) == -1)
+#ifdef _WIN32
+          if(fc_mkdir(basics.filename) == -1)
+#else
+		  if(fc_mkdir(basics.filename, DEF_DIR_MODE) == -1)
+#endif
           {
             warn("couldn't create directory '" FC_PRINTF "' putting files in parent directory", basics.filename);
           }
