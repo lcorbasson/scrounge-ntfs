@@ -1,391 +1,492 @@
-// 
-// AUTHOR
-// N. Nielsen
-//
-// VERSION
-// 0.7
-// 
-// LICENSE
-// This software is in the public domain.
-//
-// The software is provided "as is", without warranty of any kind,
-// express or implied, including but not limited to the warranties
-// of merchantability, fitness for a particular purpose, and
-// noninfringement. In no event shall the author(s) be liable for any
-// claim, damages, or other liability, whether in an action of
-// contract, tort, or otherwise, arising from, out of, or in connection
-// with the software or the use or other dealings in the software.
-// 
-// SUPPORT
-// Send bug reports to: <nielsen@memberwebs.com>
-//
+/* 
+ * AUTHOR
+ * N. Nielsen
+ *
+ * LICENSE
+ * This software is in the public domain.
+ *
+ * The software is provided "as is", without warranty of any kind,
+ * express or implied, including but not limited to the warranties
+ * of merchantability, fitness for a particular purpose, and
+ * noninfringement. In no event shall the author(s) be liable for any
+ * claim, damages, or other liability, whether in an action of
+ * contract, tort, or otherwise, arising from, out of, or in connection
+ * with the software or the use or other dealings in the software.
+ * 
+ * SUPPORT
+ * Send bug reports to: <nielsen@memberwebs.com>
+ */
 
-// ntfsx.cpp: implementation of the NTFS_Record class.
-//
-//////////////////////////////////////////////////////////////////////
+#include <io.h>
+#include <stdio.h>
+#include <malloc.h>
+#include <string.h>
 
-#include "stdafx.h"
+#include "scrounge.h"
+#include "memref.h"
 #include "ntfs.h"
 #include "ntfsx.h"
-#include "scrounge.h"
 
-//////////////////////////////////////////////////////////////////////
-// Construction/Destruction
-//////////////////////////////////////////////////////////////////////
-
-bool NTFS_Cluster::New(PartitionInfo* pInfo)
+ntfsx_datarun* ntfsx_datarun_alloc(byte* mem, byte* datarun)
 {
-	Free();
+  ntfsx_datarun* dr = (ntfsx_datarun*)malloc(sizeof(ntfsx_datarun));
+  if(dr)
+  {
+    ASSERT(datarun);
+	  dr->_mem = (byte*)refadd(mem);
+	  dr->_datarun = datarun;
+    dr->_curpos = NULL;
 
-	m_cbCluster = CLUSTER_SIZE(*pInfo);
+    dr->cluster = 0;
+    dr->length = 0;
+    dr->sparse = false;
+  }
 
-	m_pCluster = (byte*)refalloc(m_cbCluster);
-	return m_pCluster != NULL;
+  return dr;
 }
 
-bool NTFS_Cluster::Read(PartitionInfo* pInfo, uint64 begSector, HANDLE hIn)
+void ntfsx_datarun_free(ntfsx_datarun* dr)
 {
-	if(!m_pCluster)
-	{
-		if(!New(pInfo))
-			return false;
-	}
+  if(dr->_mem)
+  {
+    refrelease(dr->_mem);
+    dr->_mem = NULL;
+  }
 
-	// Read	the mftRecord
-	uint64 offRecord = SECTOR_TO_BYTES(begSector);
-	LONG lHigh = HIGHDWORD(offRecord);
-	if(SetFilePointer(hIn, LOWDWORD(offRecord), &lHigh, FILE_BEGIN) == -1
-	   && GetLastError() != NO_ERROR)
-	{
-		Free();
-		return false;
-	}
-
-	DWORD dwRead = 0;
-	if(!ReadFile(hIn, m_pCluster, m_cbCluster, &dwRead, NULL) ||
-		dwRead != m_cbCluster)
-	{
-		Free();
-		::SetLastError(ERROR_READ_FAULT);
-		return false;
-	}
-
-	::SetLastError(ERROR_SUCCESS);
-	return true;
+  free(dr);
 }
 
-void NTFS_Cluster::Free()
-{ 
-  if(m_pCluster) 
-      refrelease(m_pCluster); 
-  
-  m_pCluster = NULL;
+bool ntfsx_datarun_first(ntfsx_datarun* dr)
+{
+	dr->_curpos = dr->_datarun;
+	dr->cluster = 0;
+  dr->length = 0;
+	dr->sparse = false;
+	return ntfsx_datarun_next(dr);
 }
 
-NTFS_Record::NTFS_Record(PartitionInfo* pInfo)
+bool ntfsx_datarun_next(ntfsx_datarun* dr)
 {
-	m_pInfo	= (PartitionInfo*)refadd(pInfo);
-}
+  byte length;
+  byte roffset;
+	int64 offset;
 
-NTFS_Record::~NTFS_Record()
-{
-	refrelease(m_pInfo);
-}
+	ASSERT(dr->_curpos);
 
-bool NTFS_Record::Read(uint64 begSector, HANDLE hIn)
-{
-	if(!NTFS_Cluster::Read(m_pInfo, begSector, hIn))
+	if(!*(dr->_curpos))
 		return false;
 
-	// Check and validate this record
-	NTFS_RecordHeader* pRecord = GetHeader();
-	if(pRecord->magic != kNTFS_RecMagic || 
-	   !NTFS_DoFixups(m_pCluster, m_cbCluster))
-	{
-		NTFS_Cluster::Free();
-		::SetLastError(ERROR_NTFS_INVALID);
+	length = *(dr->_curpos) & 0x0F;
+	roffset = *(dr->_curpos) >> 4;
+
+	/* ASSUMPTION: length and offset are less 64 bit numbers */
+	if(length == 0 || length > 8 || roffset > 8)
 		return false;
-	}
+		
+	ASSERT(length <= 8);
+	ASSERT(roffset <= 8);
 
-	return true;
-}
+	(dr->_curpos)++;
 
-NTFS_Attribute* NTFS_Record::FindAttribute(uint32 attrType, HANDLE hIn)
-{
-	NTFS_Attribute* pAttribute = NULL;
+	memset(&(dr->length), 0, sizeof(uint64));
 
-	// Make sure we have a valid record
-	ASSERT(GetHeader());
-	NTFS_AttribHeader* pHeader = NTFS_FindAttribute(GetHeader(), attrType, (m_pCluster + m_cbCluster));
+	memcpy(&(dr->length), (dr->_curpos), length);
+	(dr->_curpos) += length;
 
-	if(pHeader)
+
+	/* Note that offset can be negative */
+	if(*((dr->_curpos) + (roffset - 1)) & 0x80)
+		memset(&offset, ~0, sizeof(int64));
+	else
+		memset(&offset, 0, sizeof(int64));
+
+	memcpy(&offset, (dr->_curpos), roffset);
+	(dr->_curpos) += roffset;
+
+	if(offset == 0)
 	{
-		pAttribute = new NTFS_Attribute(*this, pHeader);
+		dr->sparse = true;
 	}
 	else
 	{
-		// Do attribute list thing here!
-		pHeader = NTFS_FindAttribute(GetHeader(), kNTFS_ATTRIBUTE_LIST, (m_pCluster + m_cbCluster));
-
-		// For now we only support Resident Attribute lists
-		if(hIn && pHeader && !pHeader->bNonResident)
-		{
-			NTFS_AttribResident* pResident = (NTFS_AttribResident*)pHeader;
-			NTFS_AttrListRecord* pAttr = (NTFS_AttrListRecord*)((byte*)pHeader + pResident->offAttribData);
-
-			// Go through AttrList records looking for this attribute
-			while((byte*)pAttr < (byte*)pHeader + pHeader->cbAttribute)
-			{
-				// Found it!
-				if(pAttr->type == attrType)
-				{
-					// Read in appropriate cluster
-					uint64 mftRecord = NTFS_RefToSector(*m_pInfo, pAttr->refAttrib);
-
-					NTFS_Record recAttr(m_pInfo);
-					if(recAttr.Read(mftRecord, hIn))
-					{
-						pAttribute = recAttr.FindAttribute(attrType, hIn);
-						break;
-					}
-
-				}
-
- 				pAttr = (NTFS_AttrListRecord*)((byte*)pAttr + pAttr->cbRecord);
-			}
-		}
+		dr->sparse = false;
+		dr->cluster += offset;
 	}
 
-	return pAttribute;
+	return true;
 }
 
-bool NTFS_Attribute::NextAttribute(uint32 attrType)
+
+
+
+
+
+bool ntfsx_cluster_reserve(ntfsx_cluster* clus, partitioninfo* info)
 {
-	NTFS_AttribHeader* pHeader = NTFS_NextAttribute(GetHeader(), attrType, m_pMem + m_cbMem);	
-	if(pHeader)
+  ntfsx_cluster_release(clus);
+  clus->size = CLUSTER_SIZE(*info);
+
+  ASSERT(clus->size != 0);
+  clus->data = (byte*)refalloc(clus->size);
+  if(!clus->data)
+  {
+    errno = ENOMEM;
+    return false;
+  }
+  
+  return true;
+}
+
+bool ntfsx_cluster_read(ntfsx_cluster* clus, partitioninfo* info, uint64 begSector, int dd)
+{
+  int64 pos;
+  size_t sz;
+
+  if(!clus->data)
+  {
+    if(!ntfsx_cluster_reserve(clus, info))
+      return false;
+  }
+
+  pos = SECTOR_TO_BYTES(begSector);
+  if(_lseeki64(dd, pos, SEEK_SET) == -1)
+    return false;
+
+  sz = read(dd, clus->data, clus->size);
+  if(sz == -1)
+    return false;
+
+  if(sz != clus->size)
+  {
+    errno = ERANGE;
+    return false;
+  }
+
+	return true;
+}
+
+void ntfsx_cluster_release(ntfsx_cluster* clus)
+{
+  if(clus->data)
+    refrelease(clus->data);
+
+  clus->data = NULL;
+  clus->size = 0;
+}
+
+
+
+
+ntfsx_attribute* ntfsx_attribute_alloc(ntfsx_cluster* clus, ntfs_attribheader* header)
+{
+  ntfsx_attribute* attr = (ntfsx_attribute*)malloc(sizeof(ntfsx_attribute));
+  if(attr)
+  {
+    attr->_header = header;
+    attr->_mem = (byte*)refadd(clus->data);
+    attr->_length = clus->size;
+  }
+
+  return attr;
+}
+
+void ntfsx_attribute_free(ntfsx_attribute* attr)
+{
+  if(attr->_mem)
+  {
+    refrelease(attr->_mem);
+    attr->_mem = NULL;
+  }
+
+  free(attr);
+}
+
+ntfs_attribheader* ntfsx_attribute_header(ntfsx_attribute* attr)
+{
+  return attr->_header;
+}
+
+void* ntfsx_attribute_getresidentdata(ntfsx_attribute* attr)
+{
+	ntfs_attribresident* res = (ntfs_attribresident*)attr->_header;
+	ASSERT(!attr->_header->bNonResident);
+	return (byte*)(attr->_header) + res->offAttribData;
+}
+
+uint32 ntfsx_attribute_getresidentsize(ntfsx_attribute* attr)
+{
+	ntfs_attribresident* res = (ntfs_attribresident*)attr->_header;
+	ASSERT(!attr->_header->bNonResident);
+	return res->cbAttribData;
+}
+
+ntfsx_datarun* ntfsx_attribute_getdatarun(ntfsx_attribute* attr)
+{
+	ntfs_attribnonresident* nonres = (ntfs_attribnonresident*)attr->_header;
+	ASSERT(attr->_header->bNonResident);
+	return ntfsx_datarun_alloc(attr->_mem, (byte*)(attr->_header) + nonres->offDataRuns);
+}
+
+bool ntfsx_attribute_next(ntfsx_attribute* attr, uint32 attrType)
+{
+	ntfs_attribheader* header = ntfs_nextattribute(attr->_header, attrType, 
+                                    attr->_mem + attr->_length);	
+	if(header)
 	{
-		m_pHeader = pHeader;
+		attr->_header = header;
 		return true;
 	}
 
 	return false;
 }
 
-NTFS_Attribute::NTFS_Attribute(NTFS_Cluster& clus, NTFS_AttribHeader* pHeader)
+
+ntfsx_record* ntfsx_record_alloc(partitioninfo* info)
 {
-	m_pHeader = pHeader;
-	m_pMem = clus.m_pCluster;
-	m_cbMem = clus.m_cbCluster;
-	refadd(m_pMem);
+  ntfsx_record* rec = (ntfsx_record*)malloc(sizeof(ntfsx_record));
+  if(rec)
+  {
+    rec->info = info;
+    memset(&(rec->_clus), 0, sizeof(ntfsx_cluster));
+  }
+
+  return rec;
 }
 
-void* NTFS_Attribute::GetResidentData()
+void ntfsx_record_free(ntfsx_record* record)
 {
-	ASSERT(!m_pHeader->bNonResident);
-	NTFS_AttribResident* pRes = (NTFS_AttribResident*)m_pHeader;
-	return (byte*)m_pHeader + pRes->offAttribData;
+  ntfsx_cluster_release(&(record->_clus));
+  free(record);
 }
 
-uint32 NTFS_Attribute::GetResidentSize()
+bool ntfsx_record_read(ntfsx_record* record, uint64 begSector, int dd)
 {
-	ASSERT(!m_pHeader->bNonResident);
-	NTFS_AttribResident* pRes = (NTFS_AttribResident*)m_pHeader;
-	return pRes->cbAttribData;
-}
+  ntfs_recordheader* rechead;
 
-NTFS_DataRun* NTFS_Attribute::GetDataRun()
-{
-	ASSERT(m_pHeader->bNonResident);
-	NTFS_AttribNonResident* pNonRes = (NTFS_AttribNonResident*)m_pHeader;
+  if(!ntfsx_cluster_read(&(record->_clus), record->info, begSector, dd))
+    err(1, "couldn't read mft record from drive");
 
-	return new NTFS_DataRun(m_pMem, (byte*)m_pHeader + pNonRes->offDataRuns);
-}
-
-NTFS_DataRun::NTFS_DataRun(byte* pClus, byte* pDataRun)
-{
-	ASSERT(pDataRun);
-	m_pMem = (byte*)refadd(pClus);
-	m_pDataRun = pDataRun;
-	m_pCurPos = NULL;
-	m_firstCluster = m_numClusters = 0;
-	m_bSparse = false;
-}
-
-bool NTFS_DataRun::First()
-{
-	m_pCurPos = m_pDataRun;
-	m_firstCluster = m_numClusters = 0;
-	m_bSparse = false;
-	return Next();
-}
-
-bool NTFS_DataRun::Next()
-{
-	ASSERT(m_pCurPos);
-
-	if(!*m_pCurPos)
-		return false;
-
-	byte cbLen = *m_pCurPos & 0x0F;
-	byte cbOff = *m_pCurPos >> 4;
-
-	// ASSUMPTION length and offset are less 64 bit numbers
-	if(cbLen == 0 || cbLen > 8 || cbOff > 8)
-		return false;
-		
-	ASSERT(cbLen <= 8);
-	ASSERT(cbOff <= 8);
-
-	m_pCurPos++;
-
-	memset(&m_numClusters, 0, sizeof(uint64));
-
-	memcpy(&m_numClusters, m_pCurPos, cbLen);
-	m_pCurPos += cbLen;
-
-	int64 offset;
-
-	// Note that offset can be negative
-	if(*(m_pCurPos + (cbOff - 1)) & 0x80)
-		memset(&offset, ~0, sizeof(int64));
-	else
-		memset(&offset, 0, sizeof(int64));
-
-	memcpy(&offset, m_pCurPos, cbOff);
-	m_pCurPos += cbOff;
-
-	if(offset == 0)
+	/* Check and validate this record */
+	rechead = ntfsx_record_header(record);
+	if(rechead->magic != kNTFS_RecMagic || 
+	   !ntfs_dofixups(record->_clus.data, record->_clus.size))
 	{
-		m_bSparse = true;
+    warnx("invalid mft record");
+    ntfsx_cluster_release(&(record->_clus));
+    return false;
+	}
+
+  return true;
+}
+
+ntfs_recordheader* ntfsx_record_header(ntfsx_record* record)
+{
+  return (ntfs_recordheader*)(record->_clus.data); 
+}
+
+ntfsx_attribute* ntfsx_record_findattribute(ntfsx_record* record, uint32 attrType, int dd)
+{
+	ntfsx_attribute* attr = NULL;
+  ntfs_attribheader* attrhead;
+  ntfs_attriblistrecord* atlr;
+  ntfs_attribresident* resident;
+  uint64 mftRecord;
+  ntfsx_record* r2;
+
+	/* Make sure we have a valid record */
+	ASSERT(ntfsx_record_header(record));
+	attrhead = ntfs_findattribute(ntfsx_record_header(record), 
+                        attrType, (record->_clus.data) + (record->_clus.size));
+
+	if(attrhead)
+	{
+		attr = ntfsx_attribute_alloc(&(record->_clus), attrhead);
 	}
 	else
 	{
-		m_bSparse = false;
-		m_firstCluster += offset;
+		/* Do attribute list thing here! */
+		attrhead = ntfs_findattribute(ntfsx_record_header(record), kNTFS_ATTRIBUTE_LIST, 
+                                      (record->_clus.data) + (record->_clus.size));
+
+    /* For now we only support Resident Attribute lists */
+		if(dd && attrhead && !attrhead->bNonResident && record->info->mftmap)
+		{
+			resident = (ntfs_attribresident*)attrhead;
+			atlr = (ntfs_attriblistrecord*)((byte*)attrhead + resident->offAttribData);
+
+			/* Go through AttrList records looking for this attribute */
+			while((byte*)atlr < (byte*)attrhead + attrhead->cbAttribute)
+			{
+				/* Found it! */
+				if(atlr->type == attrType)
+				{
+					/* Read in appropriate cluster */
+          mftRecord = ntfsx_mftmap_sectorforindex(record->info->mftmap, atlr->refAttrib & 0xFFFFFFFFFFFF);
+
+					r2 = ntfsx_record_alloc(record->info);
+          if(!r2)
+            return NULL;
+
+          if(ntfsx_record_read(r2, mftRecord, dd))
+            attr = ntfsx_record_findattribute(r2, attrType, dd);
+
+          ntfsx_record_free(r2);
+
+          if(attr)
+            break;
+				}
+
+ 				atlr = (ntfs_attriblistrecord*)((byte*)atlr + atlr->cbRecord);
+			}
+		}
 	}
 
-	return true;
+	return attr;
 }
 
-NTFS_MFTMap::NTFS_MFTMap(PartitionInfo* pInfo)
+
+
+
+struct _ntfsx_mftmap_block
 {
-	m_pInfo	= (PartitionInfo*)refadd(pInfo);
-  m_pBlocks = NULL;
-  m_count = 0;
+  uint64 firstSector;   /* relative to the entire drive */
+  uint64 length;        /* length in MFT records */
+};
+
+void ntfsx_mftmap_init(ntfsx_mftmap* map, partitioninfo* info)
+{
+  map->info = info;
+  map->_blocks = NULL;
+  map->_count = 0;
 }
 
-NTFS_MFTMap::~NTFS_MFTMap()
+void ntfsx_mftmap_destroy(ntfsx_mftmap* map)
 {
-	refrelease(m_pInfo);
-
-  if(m_pBlocks)
-    free(m_pBlocks);
+  if(map->_blocks)
+  {
+    free(map->_blocks);
+    map->_blocks = NULL;
+    map->_count = 0;
+  }
 }
 
-bool NTFS_MFTMap::Load(NTFS_Record* pRecord, HANDLE hIn)
+bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd)
 {
-  bool bRet = TRUE;
-	NTFS_Attribute* pAttribData = NULL; // Data Attribute
-	NTFS_DataRun* pDataRun = NULL;		// Data runs for nonresident data
+  bool ret = true;
+	ntfsx_attribute* attribdata = NULL;   /* Data Attribute */
+	ntfsx_datarun* datarun = NULL;	      /* Data runs for nonresident data */
 
   {
-    printf("[Processing MFT] ");
+    ntfs_attribheader* header;
+    ntfs_attribnonresident* nonres;
+    uint64 length;
+    uint64 firstSector;
+    uint32 allocated;
 
-    // TODO: Check here whether MFT has already been loaded
+    /* TODO: Check here whether MFT has already been loaded */
   
-	  // Get the MFT's data
-	  pAttribData = pRecord->FindAttribute(kNTFS_DATA, hIn);
-	  if(!pAttribData) RET_ERROR(ERROR_NTFS_INVALID);
+	  /* Get the MFT's data */
+	  attribdata = ntfsx_record_findattribute(record, kNTFS_DATA, dd);
+	  if(!attribdata)
+      RETWARNBX("invalid mft. no data attribute");
 
-    if(!pAttribData->GetHeader()->bNonResident)
-      RET_ERROR(ERROR_NTFS_INVALID);
+    header = ntfsx_attribute_header(attribdata);
+    if(!header->bNonResident)
+      RETWARNBX("invalid mft. data attribute non-resident");
 
-		pDataRun = pAttribData->GetDataRun();
-    if(!pDataRun)
-      RET_ERROR(ERROR_NTFS_INVALID);
+		datarun = ntfsx_attribute_getdatarun(attribdata);
+    if(!datarun)
+      RETWARNBX("invalid mft. no data runs");
 
-		NTFS_AttribNonResident* pNonRes = (NTFS_AttribNonResident*)pAttribData->GetHeader();
+		nonres = (ntfs_attribnonresident*)header;
     
-    if(m_pBlocks)
+    if(map->_blocks)
     {
-      free(m_pBlocks);
-      m_pBlocks = NULL;
+      free(map->_blocks);
+      map->_blocks = NULL;
     }
 
-    m_count = 0;
-    uint32 allocated = 0;
+    map->_count = 0;
+    allocated = 0;
 
-		// Now loop through the data run
-		if(pDataRun->First())
+		/* Now loop through the data run */
+		if(ntfsx_datarun_first(datarun))
 		{
 			do
 			{
-        if(pDataRun->m_bSparse)
-          RET_ERROR(ERROR_NTFS_INVALID);
+        if(datarun->sparse)
+          RETWARNBX("invalid mft. sparse data runs");
 
-        if(m_count >= allocated)
+        if(map->_count >= allocated)
         {
           allocated += 16;
-          m_pBlocks = (NTFS_Block*)realloc(m_pBlocks, allocated * sizeof(NTFS_Block));
-          if(!m_pBlocks)
-      			RET_FATAL(ERROR_NOT_ENOUGH_MEMORY);
+          map->_blocks = (struct _ntfsx_mftmap_block*)realloc(map->_blocks, 
+                  allocated * sizeof(struct _ntfsx_mftmap_block));
+          if(!(map->_blocks))
+      			errx(1, "out of memory");
         }
 
-        uint64 length = pDataRun->m_numClusters * ((m_pInfo->clusterSize * kSectorSize) / kNTFS_RecordLen);
+        ASSERT(map->info->cluster != 0);
+
+        length = datarun->length * ((map->info->cluster * kSectorSize) / kNTFS_RecordLen);
         if(length == 0)
           continue;
 
-        uint64 firstSector = (pDataRun->m_firstCluster * m_pInfo->clusterSize) + m_pInfo->firstSector;
-        if(firstSector >= m_pInfo->lastSector)
+        firstSector = (datarun->cluster * map->info->cluster) + map->info->first;
+        if(firstSector >= map->info->end)
           continue;
 
-        m_pBlocks[m_count].length = length;
-        m_pBlocks[m_count].firstSector = firstSector;
-        m_count++;
+        map->_blocks[map->_count].length = length;
+        map->_blocks[map->_count].firstSector = firstSector;
+        map->_count++;
 			} 
-			while(pDataRun->Next());
+			while(ntfsx_datarun_next(datarun));
     }
 
-    bRet = true;
-    ::SetLastError(ERROR_SUCCESS);
+    ret = true;
   }
 
-clean_up:
+cleanup:
 
-  if(pAttribData)
-    delete pAttribData;
-  if(pDataRun)
-    delete pDataRun;
+  if(attribdata)
+    ntfsx_attribute_free(attribdata);
+  if(datarun)
+    ntfsx_datarun_free(datarun);
 
-  return bRet;
+  return ret;
 }
 
-uint64 NTFS_MFTMap::GetLength()
+uint64 ntfsx_mftmap_length(ntfsx_mftmap* map)
 {
   uint64 length = 0;
+  uint32 i;
 
-  for(uint32 i = 0; i < m_count; i++)
-    length += m_pBlocks[i].length;
+  for(i = 0; i < map->_count; i++)
+    length += map->_blocks[i].length;
 
   return length;
 }
 
-uint64 NTFS_MFTMap::SectorForIndex(uint64 index)
+uint64 ntfsx_mftmap_sectorforindex(ntfsx_mftmap* map, uint64 index)
 {
-  for(uint32 i = 0; i < m_count; i++)
-  {
-    NTFS_Block* p = m_pBlocks + i;
+  uint32 i;
+  struct _ntfsx_mftmap_block* p;
+  uint64 sector;
 
-    if(index > p->length)
+  for(i = 0; i < map->_count; i++)
+  {
+    p = map->_blocks + i;
+
+    if(index >= p->length)
     {
       index -= p->length;
     }
     else
     {
-      uint64 sector = index * (kNTFS_RecordLen / kSectorSize);
+      sector = index * (kNTFS_RecordLen / kSectorSize);
       sector += p->firstSector;
 
-      if(sector > m_pInfo->lastSector)
+      if(sector >= map->info->end)
         return kInvalidSector;
 
       return sector;

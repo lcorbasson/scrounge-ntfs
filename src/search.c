@@ -17,29 +17,16 @@
  * Send bug reports to: <nielsen@memberwebs.com>
  */
 
-#ifndef __MEMREF_H__
-#define __MEMREF_H__
 
-#ifdef _DEBUG
+#include <stdio.h>
+#include "drive.h"
 
-void* _refalloc_dbg(size_t sz);
-void* _refadd_dbg(void* pBuff);
-void _refrelease_dbg(void* pBuff);
+void scroungeSearch(partitioninfo* pi)
+{
+  fprintf(stderr, "[Performing NTFS partition search...]");
+  errx(1, "search functionality not implemented yet.");
 
-#define refalloc	_refalloc_dbg
-#define refadd		_refadd_dbg
-#define refrelease	_refrelease_dbg
+  /* go through all sectors until we find an MFT record */
+  /* that isn't the MFT mirror */
 
-#else
-
-void* _refalloc(size_t sz);
-void* _refadd(void* pBuff);
-void _refrelease(void* pBuff);
-
-#define refalloc	_refalloc
-#define refadd		_refadd
-#define refrelease	_refrelease
-
-#endif
-
-#endif /* __MEMREF_H__ */
+}

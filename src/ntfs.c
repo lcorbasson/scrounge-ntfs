@@ -1,25 +1,21 @@
-// 
-// AUTHOR
-// N. Nielsen
-//
-// VERSION
-// 0.7
-// 
-// LICENSE
-// This software is in the public domain.
-//
-// The software is provided "as is", without warranty of any kind,
-// express or implied, including but not limited to the warranties
-// of merchantability, fitness for a particular purpose, and
-// noninfringement. In no event shall the author(s) be liable for any
-// claim, damages, or other liability, whether in an action of
-// contract, tort, or otherwise, arising from, out of, or in connection
-// with the software or the use or other dealings in the software.
-// 
-// SUPPORT
-// Send bug reports to: <nielsen@memberwebs.com>
-//
-
+/* 
+ * AUTHOR
+ * N. Nielsen
+ *
+ * LICENSE
+ * This software is in the public domain.
+ *
+ * The software is provided "as is", without warranty of any kind,
+ * express or implied, including but not limited to the warranties
+ * of merchantability, fitness for a particular purpose, and
+ * noninfringement. In no event shall the author(s) be liable for any
+ * claim, damages, or other liability, whether in an action of
+ * contract, tort, or otherwise, arising from, out of, or in connection
+ * with the software or the use or other dealings in the software.
+ * 
+ * SUPPORT
+ * Send bug reports to: <nielsen@memberwebs.com>
+ */
 
 #include "usuals.h"
 #include "ntfs.h"
@@ -28,65 +24,66 @@
 #include "string.h"
 
 
-NTFS_AttribHeader* NTFS_SearchAttribute(byte* pLocation, uint32 attrType, void* pEnd, bool bSkip)
+ntfs_attribheader* ntfs_searchattribute(byte* location, uint32 attrType, byte* end, bool skip)
 {
-	// Now we should be at attributes
-	while((!pEnd || (pLocation + sizeof(NTFS_AttribHeader) < pEnd)) && 
-		  *((uint32*)pLocation) != kNTFS_RecEnd)
+	/* Now we should be at attributes */
+	while((!end || (location + sizeof(ntfs_attribheader) < end)) && 
+		  *((uint32*)location) != kNTFS_RecEnd)
 	{
-		NTFS_AttribHeader* pAttrib = (NTFS_AttribHeader*)pLocation;
+		ntfs_attribheader* attrib = (ntfs_attribheader*)location;
 
-		if(!bSkip)
+		if(!skip)
 		{
-			if(pAttrib->type == attrType)
-				return pAttrib;
+			if(attrib->type == attrType)
+				return attrib;
 		}
 		else
-			bSkip = false;
+			skip = false;
 
-		pLocation += pAttrib->cbAttribute;
+		location += attrib->cbAttribute;
 	}
 
 	return NULL;
 }
 
-byte* NTFS_GetAttributeList(NTFS_RecordHeader* pRecord)
+byte* ntfs_getattributelist(ntfs_recordheader* record)
 {
-  byte* pLocation = (byte*)pRecord;
-  ASSERT(pRecord->x_offUpdSeqArr != 0);
-  ASSERT(pRecord->x_offUpdSeqArr < 0x100);
-  pLocation += pRecord->x_offUpdSeqArr;
-  return pLocation;
+  byte* location = (byte*)record;
+  ASSERT(record->offAttrs != 0);
+  ASSERT(record->offAttrs < 0x100);
+  location += record->offAttrs;
+  return location;
 }
 
-NTFS_AttribHeader* NTFS_FindAttribute(NTFS_RecordHeader* pRecord, uint32 attrType, void* pEnd)
+ntfs_attribheader* ntfs_findattribute(ntfs_recordheader* record, uint32 attrType, byte* end)
 {
-	byte* pLocation = NTFS_GetAttributeList(pRecord);
-
-	return NTFS_SearchAttribute(pLocation, attrType, pEnd, false);
+	byte* location = ntfs_getattributelist(record);
+	return ntfs_searchattribute(location, attrType, end, false);
 }
 
-NTFS_AttribHeader* NTFS_NextAttribute(NTFS_AttribHeader* pAttrib, uint32 attrType, void* pEnd)
+ntfs_attribheader* ntfs_nextattribute(ntfs_attribheader* attrib, uint32 attrType, byte* end)
 {
-	return NTFS_SearchAttribute((byte*)pAttrib, attrType, pEnd, true);
+	return ntfs_searchattribute((byte*)attrib, attrType, end, true);
 }
 
-void* NTFS_GetAttributeData(NTFS_AttribResident* pAttrib, void* pEnd)
+byte* ntfs_getattributedata(ntfs_attribresident* attrib, byte* end)
 {
-	void* pData = ((byte*)pAttrib) + pAttrib->offAttribData;
-	if(!pEnd && pData > pEnd)
+	byte* data = ((byte*)attrib) + attrib->offAttribData;
+	if(data > end)
 		return NULL;
 
-	return pData;
+	return data;
 }
 
-bool NTFS_IsBetterNameSpace(byte n1, byte n2)
+bool ntfs_isbetternamespace(byte n1, byte n2)
 {
-	// We like our namespaces in this order
-	// 1. WIN32
-	// 2. WIN32/DOS
-	// 3. DOS
-	// 4. POSIX
+  /*
+   * We like our namespaces in this order
+	 * 1. WIN32
+	 * 2. WIN32/DOS
+	 * 3. DOS
+	 * 4. POSIX
+   */
 
 	if(n1 == kNTFS_NameSpacePOSIX)
 		return true;
@@ -100,30 +97,35 @@ bool NTFS_IsBetterNameSpace(byte n1, byte n2)
 	return false;
 }
 
-bool NTFS_DoFixups(byte* pCluster, uint32 cbCluster)
+bool ntfs_dofixups(byte* cluster, uint32 size)
 {
-	ASSERT(cbCluster % kSectorSize == 0);
-	NTFS_RecordHeader* pRecord = (NTFS_RecordHeader*)pCluster;
+	ntfs_recordheader* record = (ntfs_recordheader*)cluster;
+	byte numSectors;
+  uint16* updSeq;
+  uint16* sectorFooter;
+  byte i;
 
-	byte numSectors = (byte)(cbCluster / kSectorSize);
+	ASSERT(size % kSectorSize == 0);
+  numSectors = (byte)(size / kSectorSize);
 
-	// Check the number of sectors against array
-	if(pRecord->cwUpdSeq - 1 < numSectors)
-		numSectors = pRecord->cwUpdSeq - 1;
+  /* Check the number of sectors against array */
+	if(record->cwUpdSeq - 1 < numSectors)
+		numSectors = record->cwUpdSeq - 1;
 
-	uint16* pUpdSeq = (uint16*)(pCluster + pRecord->offUpdSeq);
+	updSeq = (uint16*)(cluster + record->offUpdSeq);
 
-	for(byte i = 0; i < numSectors; i++)
+	for(i = 0; i < numSectors; i++)
 	{
-		// Check last 2 bytes in each sector against
-		// first double byte value in update sequence 
-		uint16* pSectorFooter = (uint16*)((pCluster + (kSectorSize - 2)) + (i * kSectorSize));
-		if(*pSectorFooter == pUpdSeq[0])
-			*pSectorFooter = pUpdSeq[i + 1];
+    /*
+		 * Check last 2 bytes in each sector against
+		 * first double byte value in update sequence 
+     */
+		sectorFooter = (uint16*)((cluster + (kSectorSize - 2)) + (i * kSectorSize));
+		if(*sectorFooter == updSeq[0])
+			*sectorFooter = updSeq[i + 1];
 		else
 			return false;
 	}
 
 	return true;
 }
-

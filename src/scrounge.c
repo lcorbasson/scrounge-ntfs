@@ -1,717 +1,487 @@
-// 
-// AUTHOR
-// N. Nielsen
-//
-// VERSION
-// 0.7
-// 
-// LICENSE
-// This software is in the public domain.
-//
-// The software is provided "as is", without warranty of any kind,
-// express or implied, including but not limited to the warranties
-// of merchantability, fitness for a particular purpose, and
-// noninfringement. In no event shall the author(s) be liable for any
-// claim, damages, or other liability, whether in an action of
-// contract, tort, or otherwise, arising from, out of, or in connection
-// with the software or the use or other dealings in the software.
-// 
-// SUPPORT
-// Send bug reports to: <nielsen@memberwebs.com>
-//
+/* 
+ * AUTHOR
+ * N. Nielsen
+ *
+ * LICENSE
+ * This software is in the public domain.
+ *
+ * The software is provided "as is", without warranty of any kind,
+ * express or implied, including but not limited to the warranties
+ * of merchantability, fitness for a particular purpose, and
+ * noninfringement. In no event shall the author(s) be liable for any
+ * claim, damages, or other liability, whether in an action of
+ * contract, tort, or otherwise, arising from, out of, or in connection
+ * with the software or the use or other dealings in the software.
+ * 
+ * SUPPORT
+ * Send bug reports to: <nielsen@memberwebs.com>
+ */
 
-// Scrounge.cpp 
-//
+#include <io.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "stdafx.h"
+#include "scrounge.h"
 #include "ntfs.h"
 #include "ntfsx.h"
-#include "usuals.h"
-#include "drive.h"
 #include "locks.h"
-#include "scrounge.h"
 
-// ----------------------------------------------------------------------
-// Process a potential MFT Record. For directories create the directory
-// and for files write out the file.
-// 
-// Current Directory is the output directory
-// hIn is an open drive handle 
-// pInfo is partition info about hIn (needs to be a ref counted pointer)
-
-BOOL ProcessMFTRecord(PartitionInfo* pInfo, uint64 sector, NTFS_MFTMap* map, HANDLE hIn)
+typedef struct _filebasics
 {
-	// Declare data that needs cleaning up first
-	BOOL bRet = TRUE;					// Return value
-	HANDLE hFile = NULL;				// Output file handle
-	NTFS_Attribute* pAttribName = NULL;	// Filename Attribute
-	NTFS_Attribute* pAttribData = NULL; // Data Attribute
-	NTFS_DataRun* pDataRun = NULL;		// Data runs for nonresident data
+  wchar_t filename[MAX_PATH + 1];
+  uint64 created;
+  uint64 modified;
+  uint64 accessed;
+  uint32 flags;
+  uint64 parent;
+}
+filebasics;
 
-  ASSERT(sector != kInvalidSector);
+void processRecordFileBasics(partitioninfo* pi, ntfsx_record* record, filebasics* basics)
+{
+  /* Data Attribute */
+	ntfsx_attribute* attr = NULL; 
 
+  {
+    byte* resident = NULL;
+    ntfs_attribfilename* filename;
+    byte nameSpace;
 
-	// Tracks whether or not we output a file
-	bool bFile = false;
+    ASSERT(record);
+    memset(basics, 0, sizeof(filebasics));
+    basics->parent = kInvalidSector;
 
-	{
-		// Read the MFT record
-		NTFS_Record record(pInfo);
-		if(!record.Read(sector, hIn))
-			PASS_ERROR();
+	  /* Now get the name and info... */
+  	attr = ntfsx_record_findattribute(record, kNTFS_FILENAME, pi->device);
+	  if(!attr) goto cleanup;
 
-		NTFS_RecordHeader* pRecord = record.GetHeader();
-
-
-		// Check if this record is in use
-		if(!(pRecord->flags & kNTFS_RecFlagUse))
-			RET_ERROR(ERROR_SUCCESS);
-
-
-		// Info that we use later
-		WCHAR fileName[MAX_PATH + 1];
-		FILETIME ftCreated;
-		FILETIME ftModified;
-		FILETIME ftAccessed;
-		DWORD fileAttrib = 0;
-		uint64 mftParent = kInvalidSector;
-		byte* pResidentData = NULL;
-
-
-		// Now get the name and info...
-		pAttribName = record.FindAttribute(kNTFS_FILENAME, hIn);
-		if(!pAttribName) RET_ERROR(ERROR_SUCCESS);
-
-
-		byte nameSpace = kNTFS_NameSpacePOSIX;
-		memset(fileName, 0, sizeof(fileName));
+		nameSpace = kNTFS_NameSpacePOSIX;
+		memset(basics->filename, 0, sizeof(basics->filename));
 
 		do
 		{
-			// TODO ASSUMPTION: File name is always resident
-			ASSERT(!pAttribName->GetHeader()->bNonResident);
+			/* TODO ASSUMPTION: File name is always resident */
+			ASSERT(!ntfsx_attribute_header(attr)->bNonResident);
 
 
-			// Get out all the info we need
-			NTFS_AttrFileName* pFileName = (NTFS_AttrFileName*)pAttribName->GetResidentData();
+			/* Get out all the info we need */
+			filename = (ntfs_attribfilename*)ntfsx_attribute_getresidentdata(attr);
+      ASSERT(filename);
 		
-			// There can be multiple filenames with different namespaces
-			// so choose the best one
-			if(NTFS_IsBetterNameSpace(nameSpace, pFileName->nameSpace))
+			/*
+       * There can be multiple filenames with different 
+       * namespaces so choose the best one
+       */
+			if(ntfs_isbetternamespace(nameSpace, filename->nameSpace))
 			{
-				// Dates
-				NTFS_MakeFileTime(pFileName->timeCreated, ftCreated);
-				NTFS_MakeFileTime(pFileName->timeModified, ftModified);
-				NTFS_MakeFileTime(pFileName->timeRead, ftAccessed);
+				/* Dates */
+        basics->created = filename->timeCreated;
+        basics->modified = filename->timeModified;
+        basics->accessed = filename->timeRead;
 
-				// File Name
-				wcsncpy(fileName, (wchar_t*)(((byte*)pFileName) + sizeof(NTFS_AttrFileName)), pFileName->cFileName);
-				fileName[pFileName->cFileName] = 0;
+				/* File Name */
+				wcsncpy(basics->filename, (wchar_t*)(((byte*)filename) + sizeof(ntfs_attribfilename)), filename->cFileName);
+				basics->filename[filename->cFileName] = 0;
 
-				// Attributes
-				if(pFileName->flags & kNTFS_FileReadOnly)
-					fileAttrib |= FILE_ATTRIBUTE_READONLY;
-				if(pFileName->flags & kNTFS_FileHidden)
-					fileAttrib |= FILE_ATTRIBUTE_HIDDEN;
-				if(pFileName->flags & kNTFS_FileArchive)
-					fileAttrib |= FILE_ATTRIBUTE_ARCHIVE;
-				if(pFileName->flags &  kNTFS_FileSystem)
-					fileAttrib |= FILE_ATTRIBUTE_SYSTEM;
+				/* Attributes */
+        basics->flags = filename->flags;
 
-				// Parent Directory
-        if(map)
-          mftParent = map->SectorForIndex(pFileName->refParent & 0xFFFFFFFFFFFF);
+				/* Parent Directory */
+        basics->parent = filename->refParent & 0xFFFFFFFFFFFF;
 
-				// Namespace
-				nameSpace = pFileName->nameSpace;
+				/* Namespace */
+				nameSpace = filename->nameSpace;
 			}
 		}
-		while(pAttribName->NextAttribute(kNTFS_FILENAME));
+		while(ntfsx_attribute_next(attr, kNTFS_FILENAME));
+  }
 
+cleanup:
+  if(attr)
+    ntfsx_attribute_free(attr);
+}
 
-		// Check if we got a file name
-		if(fileName[0] == 0)
-			RET_ERROR(ERROR_NTFS_INVALID);
+void processMFTRecord(partitioninfo* pi, uint64 sector, int level)
+{
+  ntfsx_record* record = NULL;
+  ntfsx_attribute* attribdata = NULL;
+  ntfsx_datarun* datarun = NULL;
+  int outfile = -1;
 
+  ntfsx_cluster cluster;
+  memset(&cluster, 0, sizeof(cluster));
 
-		// Check if it's the root
-		// If so then bumm out cuz we don't want to have anything to do with it
-		if(sector == mftParent ||	// Root is it's own parent
-		   !wcscmp(fileName, L"."))   // Or is called '.'
-		    RET_ERROR(ERROR_SUCCESS);
+  {
+    filebasics basics;
+    ntfs_recordheader* header;
+    uint64 parentSector;
+    uint64 dataSector;
+    uint16 rename = 0;
+    uint64 fileSize;
+    uint32 i;
+    uint32 num;
+    wchar_t filename2[MAX_PATH + 1];
+    ntfs_attribheader* attrhead;
+    ntfs_attribnonresident* nonres;
 
+    ASSERT(sector != kInvalidSector);
 
-    // If it's the MFT then we read that in
-    if(!wcscmp(fileName, kNTFS_MFTName))
+    record = ntfsx_record_alloc(pi);
+    if(!record)
+      errx(1, "out of memory");
+
+    /* Read the MFT record */
+	  if(!ntfsx_record_read(record, sector, pi->device))
+      RETURN;
+
+    header = ntfsx_record_header(record);
+    ASSERT(header);
+
+    if(!(header->flags & kNTFS_RecFlagUse))
+      RETURN;
+
+    /* Try and get a file name out of the header */
+    processRecordFileBasics(pi, record, &basics);
+
+    if(basics.filename[0] == 0)
     {
-      if(map)
-      {
-        printf("[Processing MFT] ");
+      RETWARNX("invalid mft record. in use, but no filename");
+    }
 
-        // We found the MFT, let's load it up
-        if(!map->Load(&record, hIn))
-          PASS_FATAL();
+    /* If it's the root folder then return */
+    if(!wcscmp(basics.filename, L"."))
+      RETURN;
+
+    /* Process parent folders if available */
+    if(basics.parent != kInvalidSector)
+    {
+      /* Only if we have MFT map info available */
+      if(pi->mftmap)
+      {
+        parentSector = ntfsx_mftmap_sectorforindex(pi->mftmap, basics.parent);
+
+        if(parentSector == kInvalidSector)
+          warnx("invalid parent directory for file: %S", basics.filename);
+        else
+          processMFTRecord(pi, parentSector, level + 1);
+      }
+    }
+
+    printf(level == 0 ? "\\%S\n" : "\\%S", basics.filename);
+
+    /* Directory handling: */
+    if(header->flags & kNTFS_RecFlagDir)
+    {
+      /* Try to change to the directory */
+      /* PORT: Wide character file functions */
+      if(_wchdir(basics.filename) == -1)
+      {
+        /* PORT: Wide character file functions */
+        if(_wmkdir(basics.filename) == -1)
+        {
+          warnx("couldn't create directory '%S' putting files in parent directory", basics.filename);
+        }
+        else
+        {
+          setFileAttributes(basics.filename, basics.flags);
+          _wchdir(basics.filename);
+        }
       }
 
-      RET_ERROR(ERROR_SUCCESS);
+      RETURN;
     }
 
 
-    if(mftParent != kInvalidSector)
+    /* Normal file handling: */
+    /* PORT: Wide character file functions */
+    outfile = _wopen(basics.filename, _O_BINARY | _O_CREAT | _O_EXCL | _O_WRONLY);
+  
+    wcsncpy(filename2, basics.filename, MAX_PATH);
+    filename2[MAX_PATH] = 0;
+
+    while(outfile == -1 && errno == EEXIST && rename < 0x1000)
     {
-		  // Create Parent folders
-		  if(!ProcessMFTRecord(pInfo, mftParent, map, hIn))
-			  PASS_FATAL();
+      if(wcslen(basics.filename) + 7 >= MAX_PATH)
+      {
+        warnx("file name too long on duplicate file: %S", basics.filename);
+        goto cleanup;
+      }
+
+      wcscpy(basics.filename, filename2);
+      wcscat(basics.filename, L".");
+
+      _itow(rename, basics.filename + wcslen(basics.filename), 10);
+      rename++;
+
+      outfile = _wopen(basics.filename, _O_BINARY | _O_CREAT | _O_EXCL | _O_WRONLY);
+    }
+
+    if(outfile == -1)
+    {
+      warnx("couldn't open output file: %S", basics.filename);
+      goto cleanup;
     }
 
 
-		// If it's a folder then create it
-		if(pRecord->flags & kNTFS_RecFlagDir)
-		{
-			// Try to change to dir
-			if(!SetCurrentDirectoryW(fileName))
-			{
-				// Otherwise create dir
-				if(CreateDirectoryW(fileName, NULL))
-				{
-					// And set attributes
-					SetFileAttributesW(fileName, fileAttrib);
-					SetCurrentDirectoryW(fileName);
-				}
-			}
+    attribdata = ntfsx_record_findattribute(record, kNTFS_DATA, pi->device);
+    if(!attribdata)
+      RETWARNX("invalid mft record. no data attribute found");
+  
+    attrhead = ntfsx_attribute_header(attribdata);
 
-			wprintf(L"\\%s", fileName);
-		}
+    /* For resident data just write it out */
+    if(!attrhead->bNonResident)
+    {
+      uint32 length = ntfsx_attribute_getresidentsize(attribdata);
+      byte* data = ntfsx_attribute_getresidentdata(attribdata);
 
+      if(!data)
+        RETWARNX("invalid mft record. resident data screwed up");
 
-		// Otherwise write the file data
-		else
-		{
-			// Write to the File
-			hFile = CreateFileW(fileName, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
+      if(write(outfile, data, length) != (int32)length)
+        RETWARN("couldn't write data to output file");
+    }
 
-			uint16 nRename = 0;	
-			wchar_t fileName2[MAX_PATH + 1];
-			wcscpy(fileName2, fileName);
+    /* For non resident data it's a bit more involved */
+    else
+    {
+      datarun = ntfsx_attribute_getdatarun(attribdata);
+      if(!datarun)
+        errx(1, "out of memory");
 
-			// For duplicate files we add .x to the file name where x is a number
-			while(hFile == INVALID_HANDLE_VALUE && ::GetLastError() == ERROR_FILE_EXISTS
-				  && nRename < 0x1000000)
-			{
-				wcscpy(fileName, fileName2);
-				wcscat(fileName, L".");
-				uint16 len = wcslen(fileName);
-				
-				// Make sure we don't have a buffer overflow
-				if(len > MAX_PATH - 5)
-					break;
+      nonres = (ntfs_attribnonresident*)attrhead;
+      fileSize = nonres->cbAttribData;
 
-				_itow(nRename, fileName + len, 10);
-				nRename++;
+      /* Allocate a cluster for reading and writing */
+      if(!ntfsx_cluster_reserve(&cluster, pi))
+        errx(1, "out of memory");
 
-				hFile = CreateFileW(fileName, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
-			}
-			
-			wprintf(L"\\%s", fileName);
-			bFile = true;
+      if(ntfsx_datarun_first(datarun))
+      {
+        do
+        {
+          /* Check to see if we have a bogus data run */
+          if(fileSize == 0 && datarun->length)
+          {
+            warnx("invalid mft record. file length invalid or extra data in file");
+            break;
+          }
 
-			// Check if successful after all that
-			if(hFile == INVALID_HANDLE_VALUE)
-				PASS_FATAL();
+          /* Sparse clusters we just write zeros */
+          if(datarun->sparse)
+          {
+            memset(cluster.data, 0, cluster.size);
 
-			
-			DWORD dwDone = 0;
-			uint64 fileSize = 0;
+            for(i = 0; i < datarun->length && fileSize; i++)
+            {
+              num = cluster.size;
 
+              if(fileSize < 0xFFFFFFFF && num > (uint32)fileSize)
+                num = (uint32)fileSize;
 
-			// Get the File's data
-			pAttribData = record.FindAttribute(kNTFS_DATA, hIn);
-			if(!pAttribData) RET_ERROR(ERROR_NTFS_INVALID);
+              if(write(outfile, cluster.data, num) != (int32)num)
+                err(1, "couldn't write to output file: %S", basics.filename);
 
-			
-			// For Resident data just write it out
-			if(!pAttribData->GetHeader()->bNonResident)
-			{
-				if(!WriteFile(hFile, pAttribData->GetResidentData(), pAttribData->GetResidentSize(), &dwDone, NULL))
-					PASS_FATAL();
-			}
+              fileSize -= num;
+            }
+          }
 
-			// For Nonresident data a bit more involved
-			else
-			{
-				pDataRun = pAttribData->GetDataRun();
-				ASSERT(pDataRun != NULL);
+          /* Handle not sparse clusters */
+          else
+          {
+            if(pi->locks)
+            {
+              /* Add a location lock so any raw scrounging won't do 
+                 this cluster later */
+              addLocationLock(pi->locks, CLUSTER_TO_SECTOR(*pi, datarun->cluster), 
+                    CLUSTER_TO_SECTOR(*pi, datarun->cluster + datarun->length));
+            }
 
-				NTFS_AttribNonResident* pNonRes = (NTFS_AttribNonResident*)pAttribData->GetHeader();
-				fileSize = pNonRes->cbAttribData;
+            for(i = 0; i < datarun->length && fileSize; i++)
+            {
+              num = min(cluster.size, (uint32)fileSize);
+              dataSector = CLUSTER_TO_SECTOR(*pi, (datarun->cluster + i));
 
-				// Allocate a cluster for reading and writing
-				NTFS_Cluster clus;
-				if(!clus.New(pInfo))
-					RET_FATAL(ERROR_NOT_ENOUGH_MEMORY);
-		
+              if(!ntfsx_cluster_read(&cluster, pi, dataSector, pi->device))
+                err(1, "couldn't read sector from disk");
 
-				// Now loop through the data run
-				if(pDataRun->First())
-				{
-					do
-					{
-						// If it's a sparse cluster then just write zeros
-						if(pDataRun->m_bSparse)
-						{
-							memset(clus.m_pCluster, 0, clus.m_cbCluster);
+              if(write(outfile, cluster.data, num) != (int32)num)
+                err(1, "couldn't write to output file: %S", basics.filename);
 
-							for(uint32 i = 0; i < pDataRun->m_numClusters && fileSize; i++)
-							{
-								DWORD dwToWrite = clus.m_cbCluster;
-								if(!HIGHDWORD(fileSize) && dwToWrite > (DWORD)fileSize)
-									dwToWrite = (DWORD)fileSize;
+              fileSize -= num;
+            }
+          }
+        }
+        while(ntfsx_datarun_next(datarun));
+      }
+    }
 
-								if(!WriteFile(hFile, clus.m_pCluster, dwToWrite, &dwDone, NULL))
-									PASS_FATAL();
+		if(fileSize != 0)
+      warnx("invalid mft record. couldn't find all data for file");
 
-								fileSize -= dwToWrite;
-							}
-						}
+    close(outfile);
+    outfile = -1;
 
-						// Not sparse
-						else
-						{
-							// Add a lock on those clusters so we don't have to scrounge'm later
-							AddLocationLock(pInfo, CLUSTER_TO_SECTOR(*pInfo, pDataRun->m_firstCluster), 
-												   CLUSTER_TO_SECTOR(*pInfo, pDataRun->m_firstCluster + pDataRun->m_numClusters));
+    setFileTime(basics.filename, &(basics.created), 
+              &(basics.accessed), &(basics.modified));
 
-							// Read and write clusters out
-							for(uint32 i = 0; i < pDataRun->m_numClusters && fileSize; i++)
-							{
-								DWORD dwToWrite = min(clus.m_cbCluster, (DWORD)fileSize);
-								uint64 sector = CLUSTER_TO_SECTOR(*pInfo, (pDataRun->m_firstCluster + i));
-							
-								if(!clus.Read(pInfo, sector, hIn))
-									PASS_ERROR();
+    setFileAttributes(basics.filename, basics.flags);
+  }
 
-								if(!WriteFile(hFile, clus.m_pCluster, dwToWrite, &dwDone, NULL))
-									PASS_FATAL();
+cleanup:
+  if(record)
+    ntfsx_record_free(record);
 
-								fileSize -= dwToWrite;
-							}
-						}
-					} 
-					while(pDataRun->Next());
-				}
-			}
+  ntfsx_cluster_release(&cluster);
 
-			// TODO: More intelligence needed here
-			if(fileSize != 0)
-				printf(" (Entire file not written)");
+  if(attribdata)
+    ntfsx_attribute_free(attribdata);
 
-			SetFileTime(hFile, &ftCreated, &ftAccessed, &ftModified);
-				
-			CloseHandle(hFile);
-			hFile = NULL;
+  if(datarun)
+    ntfsx_datarun_free(datarun);
 
-			SetFileAttributesW(fileName, fileAttrib);
-		}
-	}
-
-	bRet = TRUE;
-	::SetLastError(ERROR_SUCCESS);
-
-clean_up:
-	if(hFile && hFile != INVALID_HANDLE_VALUE)
-		CloseHandle(hFile);
-	if(pAttribName)
-		delete pAttribName;
-	if(pAttribData)
-		delete pAttribData;
-	if(pDataRun)
-		delete pDataRun;
-
-	if(bFile)
-	{
-		if(::GetLastError() != ERROR_SUCCESS)
-		{
-			printf(" (");
-			PrintLastError();
-			fputc(')', stdout);
-		}
-	}
-
-
-	return bRet; 
+  if(outfile != -1)
+    close(outfile);
 }
 
 
-// ----------------------------------------------------------------------
-//  Helper function to print out errors
-
-void PrintLastError()
+void scroungeMFT(partitioninfo* pi, ntfsx_mftmap* map)
 {
-	DWORD dwErr = ::GetLastError();
-	switch(dwErr)
-	{
-	case ERROR_NTFS_INVALID:
-		printf("Invalid NTFS data structure");
-		break;
+  ntfsx_record* record = NULL;
+  uint64 sector;
+  filebasics basics;
+  ntfs_recordheader* header;
 
-	case ERROR_NTFS_NOTIMPLEMENT:
-		printf("NTFS feature not implemented");
-		break;
+  /* Try and find the MFT at the given location */
+  sector = pi->mft + pi->first;
 
-	default:
-		{
-		    LPVOID lpMsgBuf;
+  if(sector >= pi->end)
+    errx(2, "invalid mft. past end of partition");
 
-		    DWORD dwRet = ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
-										  FORMAT_MESSAGE_MAX_WIDTH_MASK,
-										  NULL,
-										  dwErr,
-										  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-										  (LPTSTR) &lpMsgBuf,
-										  0,
-										  NULL); 
+  record = ntfsx_record_alloc(pi);
+  if(!record)
+    errx(1, "out of memory");
 
-			if(dwRet && lpMsgBuf)
-			{
-				// Remove return
-				((LPTSTR)lpMsgBuf)[dwRet - 2] = 0;
+  /* Read the MFT record */
+	if(!ntfsx_record_read(record, sector, pi->device))
+		err(1, "couldn't read mft");
 
-				wprintf((LPTSTR)lpMsgBuf);
+  header = ntfsx_record_header(record);
+  ASSERT(header);
 
-				// Free the buffer.
-				::LocalFree(lpMsgBuf);
-			}
-		}
-	};
+  if(!(header->flags & kNTFS_RecFlagUse))
+    errx(2, "invalid mft. marked as not in use");
+
+  /* Try and get a file name out of the header */
+
+  processRecordFileBasics(pi, record, &basics);
+
+  if(wcscmp(basics.filename, kNTFS_MFTName))
+    errx(2, "invalid mft. wrong record");
+
+  fprintf(stderr, "[Processing MFT...]\n");
+
+  /* Load the MFT data runs */
+
+  if(!ntfsx_mftmap_load(map, record, pi->device))
+    err(1, "error reading in mft");
+
+  if(ntfsx_mftmap_length(map) == 0)
+    errx(1, "invalid mft. no records in mft");
+
+  ntfsx_record_free(record);
 }
 
 
-// ----------------------------------------------------------------------
-//  Scrounge the partition for MFT Records and hand off to 
-//  ProcessMFTRecord for processing
-
-BOOL ScroungeMFTRecords(PartitionInfo* pInfo, HANDLE hIn)
+void scroungeUsingMFT(partitioninfo* pi)
 {
 	uint64 numRecords = 0;
+	char dir[MAX_PATH];
+  ntfsx_mftmap map;
+  uint64 length;
+  uint64 sector;
+  uint64 i;
 
-	// Save current directory away
-	TCHAR curDir[MAX_PATH + 1];
-	GetCurrentDirectory(MAX_PATH, curDir);
+  fprintf(stderr, "[Scrounging via MFT...]\n");
 
-  NTFS_MFTMap map(pInfo);
+	/* Save current directory away */
+	getcwd(dir, MAX_PATH);
 
-  // Try and find the MFT at the given location
-  uint64 sector = pInfo->offMFT + pInfo->firstSector;
+  /* Get the MFT map ready */
+  memset(&map, 0, sizeof(map));
+  ntfsx_mftmap_init(&map, pi);
+  pi->mftmap = &map;
 
-  if(sector < pInfo->lastSector)
+
+  /* 
+   * Make sure the MFT is actually where they say it is.
+   * This also fills in the valid cluster size if needed
+   */
+  scroungeMFT(pi, &map);
+  length = ntfsx_mftmap_length(&map);
+ 
+  for(i = 1; i < length; i ++)
   {
-    BOOL bRet = ProcessMFTRecord(pInfo, sector, &map, hIn);
-
-		fputc('\n', stdout);
-
-		if(!bRet)
-			return FALSE;
-  }
-
-  uint64 length = map.GetLength();
-  if(length == 0)
-  {
-    printf("[MFT not found at specified location. No folder structure]\n");
-    return ScroungeRawRecords(pInfo, hIn);
-  }
-
-  for(uint64 i = 1; i < length; i += (kNTFS_RecordLen / kSectorSize))
-  {
-  	// Move to right output directory
-	  SetCurrentDirectory(curDir);
-
-    // TODO: Warn when invalid
-    uint64 sector = map.SectorForIndex(i);
+    sector = ntfsx_mftmap_sectorforindex(&map, i);
     if(sector == kInvalidSector)
+    {
+      warnx("invalid index in mft: %d", i);
       continue;
+    }
 
-		// Then process it
-		BOOL bRet = ProcessMFTRecord(pInfo, sector, &map, hIn);
+    /* Process the record */
+    processMFTRecord(pi, sector, 0);
 
-		fputc('\n', stdout);
-
-		if(!bRet)
-			return FALSE;
+  	/* Move to right output directory */
+    chdir(dir);
 	}
 
-	return TRUE;
+  pi->mftmap = NULL;
 }
 
-BOOL ScroungeRawRecords(PartitionInfo* pInfo, HANDLE hIn)
+void scroungeUsingRaw(partitioninfo* pi)
 {
 	byte buffSec[kSectorSize];
-	DWORD dwDummy = 0;
+	char dir[_MAX_PATH + 1];
+  uint64 sec;
+  drivelocks locks;
+  int64 pos;
+  size_t sz;
+  uint32 magic = kNTFS_RecMagic;
 
-	uint64 numRecords = 0;
+  fprintf(stderr, "[Scrounging raw records...]\n");
 
-	// Save current directory away
-	TCHAR curDir[MAX_PATH + 1];
-	GetCurrentDirectory(MAX_PATH, curDir);
+	/* Save current directory away */
+	getcwd(dir, _MAX_PATH);
 
-	// Loop through sectors
-	for(uint64 sec = pInfo->firstSector; sec < pInfo->lastSector; sec++)
+  /* Get the locks ready */
+  memset(&locks, 0, sizeof(locks));
+  pi->locks = &locks;
+
+	/* Loop through sectors */
+	for(sec = pi->first; sec < pi->end; sec++)
 	{
-		// See if the current sector has already been read
-		if(CheckLocationLock(pInfo, sec))
+    if(checkLocationLock(&locks, sec))
+      continue;
+
+  	/* Read	the record */
+    pos = SECTOR_TO_BYTES(sec);
+    if(_lseeki64(pi->device, pos, SEEK_SET) == -1)
+      errx(1, "can't seek device to sector");
+
+    sz = read(pi->device, buffSec, kSectorSize);
+    if(sz == -1 || sz != kSectorSize)
+      errx(1, "can't read drive sector");
+
+		/* Check beginning of sector for the magic signature */
+		if(!memcmp(&magic, &buffSec, sizeof(magic)))
 		{
-			// TODO: check this
-			sec--;
-			continue;
-		}
-
-		// Read	the mftRecord
-		uint64 offRecord = SECTOR_TO_BYTES(sec);
-		LONG lHigh = HIGHDWORD(offRecord);
-		if(SetFilePointer(hIn, LOWDWORD(offRecord), &lHigh, FILE_BEGIN) == -1
-		   && GetLastError() != NO_ERROR) 
-			return FALSE;
-
-		if(!ReadFile(hIn, buffSec, kSectorSize, &dwDummy, NULL))
-			return FALSE;
-
-		// Check beginning of sector for the magic signature
-		if(!memcmp(&kNTFS_RecMagic, &buffSec, sizeof(kNTFS_RecMagic)))
-		{
-			// Move to right output directory
-			SetCurrentDirectory(curDir);
-
-			// Then process it
-			BOOL bRet = ProcessMFTRecord(pInfo, sec, NULL, hIn);
-
-			fputc('\n', stdout);
-
-			if(!bRet)
-				return FALSE;
-
+      /* Process the record */
+      processMFTRecord(pi, sec, 0);
 		}
 	}
 
-	return TRUE;
-}
-
-
-// ----------------------------------------------------------------------
-//  Output strings
-
-const char kPrintHeader[]		= "Scrounge (NTFS) Version 0.7\n\n";
-
-const char kPrintData[]		= "\
-    Start Sector    End Sector      Cluster Size    MFT Offset    \n\
-==================================================================\n\
-";
-
-const char kPrintDrive[]		= "\nDrive: %u\n";
-const char kPrintDriveInfo[]	= "    %-15u %-15u ";
-const char kPrintNTFSInfo[]		= "%-15u %-15u";
-
-const char kPrintHelp[]         = "\
-Recovers an NTFS partition with a corrupted MFT.                     \n\
-                                                                     \n\
-Usage: scrounge drive start end cluster mft [outdir]                 \n\
-                                                                     \n\
-  drive:     Physical drive number.                                  \n\
-  start:     First sector of partition.                              \n\
-  end:       Last sector of partition.                               \n\
-  cluster:   Cluster size for the partition (in sectors).            \n\
-  mft:       Offset from beginning of partition to MFT (in sectors). \n\
-  outdir:    Output directory (optional).                            \n\
-                                                                     \n\
-";
-
-
-// ----------------------------------------------------------------------
-//  Info functions
-
-int PrintNTFSInfo(HANDLE hDrive, uint64 tblSector)
-{
-	byte sector[kSectorSize];
-
-	uint64 pos = SECTOR_TO_BYTES(tblSector);
-	LONG lHigh = HIGHDWORD(pos);
-	if(SetFilePointer(hDrive, LOWDWORD(pos), &lHigh, FILE_BEGIN) == -1
-	   && GetLastError() != NO_ERROR)
-		return 1;
-
-	DWORD dwRead = 0;
-	if(!ReadFile(hDrive, sector, kSectorSize, &dwRead, NULL))
-		return 1;
-
-	NTFS_BootSector* pBoot = (NTFS_BootSector*)sector;
-	if(!memcmp(pBoot->sysId, kNTFS_SysId, sizeof(pBoot->sysId)))
-		printf(kPrintNTFSInfo, pBoot->secPerClus, pBoot->offMFT * pBoot->secPerClus);
-
-	wprintf(L"\n");
-	return 0;
-}
-
-
-int PrintPartitionInfo(HANDLE hDrive, uint64 tblSector)
-{
-	ASSERT(sizeof(Drive_MBR) == kSectorSize);
-	Drive_MBR mbr;
-
-	uint64 pos = SECTOR_TO_BYTES(tblSector);
-	LONG lHigh = HIGHDWORD(pos);
-	if(SetFilePointer(hDrive, LOWDWORD(pos), &lHigh, FILE_BEGIN) == -1
-	   && GetLastError() != NO_ERROR)
-		return 1;
-
-	DWORD dwRead = 0;
-	if(!ReadFile(hDrive, &mbr, sizeof(Drive_MBR), &dwRead, NULL))
-		return 1;
-
-	if(mbr.sig == kMBR_Sig)
-	{
-		for(int i = 0; i < 4; i++)
-		{
-			if(mbr.partitions[i].system == kPartition_Extended ||
-			   mbr.partitions[i].system == kPartition_ExtendedLBA)
-			{
-				PrintPartitionInfo(hDrive, tblSector + mbr.partitions[i].startsec);
-			}
-			else if(!mbr.partitions[i].system == kPartition_Invalid)
-			{
-				printf(kPrintDriveInfo, (uint32)tblSector + mbr.partitions[i].startsec, (uint32)tblSector + mbr.partitions[i].endsec);
-				PrintNTFSInfo(hDrive, tblSector + (uint64)mbr.partitions[i].startsec);
-			}
-		}
-	}
-
-	return 0;
-}
-
-const WCHAR kDriveName[] = L"\\\\.\\PhysicalDrive%d";
-
-int PrintData()
-{
-	printf(kPrintHeader);
-	printf(kPrintData);
-
-	WCHAR driveName[MAX_PATH];
-
-	// LIMIT: 256 Drives
-	for(int i = 0; i < 0x100; i++)
-	{
-		wsprintf(driveName, kDriveName, i);
-
-		HANDLE hDrive = CreateFile(driveName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-		if(hDrive != INVALID_HANDLE_VALUE)
-		{
-			printf(kPrintDrive, i);
-
-			PrintPartitionInfo(hDrive, 0);
-
-			CloseHandle(hDrive);
-		}
-	}
-
-	return 2;
-}
-
-
-// ----------------------------------------------------------------------
-//  Main Program
-
-int main(int argc, char* argv[])
-{
-	int curArg = 1;
-
-	if(argc < 2)
-		return PrintData();
-
-
-	// Check for flags
-	if(*(argv[curArg]) == '-' || *(argv[curArg]) == '/' )
-	{
-		char* arg = argv[curArg];
-		arg++;
-
-		while(*arg != '\0')
-		{
-			switch(tolower(*arg))
-			{
-
-			// Help
-			case 'h':
-				printf(kPrintHeader);
-				printf(kPrintHelp);
-				return 2;
-
-			default:
-				printf("scrounge: invalid option '%c'\n", *arg);
-				return PrintData();
-			}
-
-			arg++;
-		}
-
-		curArg++;
-	}
-
-	PartitionInfo* pInfo = CreatePartitionInfo();
-	if(!pInfo)
-	{
-		printf("scrounge: Out of Memory.\n");
-		return 1;
-	}
-
-	if(curArg + 5 > argc)
-	{
-		printf("scrounge: invalid option(s).\n");
-		return 2;
-	}
-
-	// Next param should be the drive
-	byte driveNum = atoi(argv[curArg++]);
-
-	// Followed by the partition info
-	pInfo->firstSector = atoi(argv[curArg++]);
-	pInfo->lastSector = atoi(argv[curArg++]);
-	pInfo->clusterSize = atoi(argv[curArg++]);
-	pInfo->offMFT = atoi(argv[curArg++]);
-
-	if(pInfo->firstSector == 0 ||
-	   pInfo->lastSector == 0 ||
-	   pInfo->clusterSize == 0 ||
-	   pInfo->offMFT == 0)
-	{
-		printf("scrounge: invalid option(s).\n");
-		return 2;
-	}
-
-//	pInfo->clusterSize = 8;
-//	pInfo->firstSector = 20482938/*128*/;
-//	pInfo->lastSector = 80019765/*15358077*/;
-//	pInfo->offMFT = 32;
-
-	if(curArg <= argc)
-		SetCurrentDirectoryA(argv[curArg++]);
-
-	WCHAR driveName[MAX_PATH];
-
-	wsprintf(driveName, kDriveName, driveNum);
-
-	HANDLE hDrive = CreateFile(driveName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-	if(hDrive == INVALID_HANDLE_VALUE)
-	{
-		printf("scrounge: Can't open drive %d.\n", driveNum);
-		return 2;
-	}
-
-	if(!ScroungeMFTRecords(pInfo, hDrive))
-	{
-		printf("scrounge: ");
-		PrintLastError();
-		fputc('\n', stdout);
-		return 2;
-	}
-
-	FreePartitionInfo(pInfo);
-	
-	return 0;
+  pi->locks = NULL;
 }

@@ -17,29 +17,40 @@
  * Send bug reports to: <nielsen@memberwebs.com>
  */
 
-#ifndef __MEMREF_H__
-#define __MEMREF_H__
-
 #ifdef _DEBUG
 
-void* _refalloc_dbg(size_t sz);
-void* _refadd_dbg(void* pBuff);
-void _refrelease_dbg(void* pBuff);
+#include <stdarg.h>
 
-#define refalloc	_refalloc_dbg
-#define refadd		_refadd_dbg
-#define refrelease	_refrelease_dbg
-
-#else
-
-void* _refalloc(size_t sz);
-void* _refadd(void* pBuff);
-void _refrelease(void* pBuff);
-
-#define refalloc	_refalloc
-#define refadd		_refadd
-#define refrelease	_refrelease
-
+#ifndef ASSERT
+	#ifdef ATLASSERT
+		#define ASSERT ATLASSERT
+	#else
+		#include <assert.h>
+		#define ASSERT assert
+	#endif
 #endif
 
-#endif /* __MEMREF_H__ */
+#ifndef VERIFY
+#define VERIFY(f) ASSERT(f)
+#endif
+
+#ifndef DEBUG_ONLY
+#define DEBUG_ONLY(f)      (f)
+#endif
+
+
+#else /* !DEBUG */
+
+#ifndef ASSERT
+#define ASSERT(f)          ((void)0)
+#endif
+
+#ifndef VERIFY
+#define VERIFY(f)          ((void)(f))
+#endif
+
+#ifndef DEBUG_ONLY
+#define DEBUG_ONLY(f)      ((void)0)
+#endif
+
+#endif /* _DEBUG */

@@ -3,7 +3,7 @@ Microsoft Developer Studio Workspace File, Format Version 6.00
 
 ###############################################################################
 
-Project: "Scrounge"=.\Scrounge.dsp - Package Owner=<4>
+Project: "win32"=".\win32.dsp" - Package Owner=<4>
 
 Package=<5>
 {{{

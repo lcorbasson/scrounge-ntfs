@@ -1,139 +1,112 @@
-// 
-// AUTHOR
-// N. Nielsen
-//
-// VERSION
-// 0.7
-// 
-// LICENSE
-// This software is in the public domain.
-//
-// The software is provided "as is", without warranty of any kind,
-// express or implied, including but not limited to the warranties
-// of merchantability, fitness for a particular purpose, and
-// noninfringement. In no event shall the author(s) be liable for any
-// claim, damages, or other liability, whether in an action of
-// contract, tort, or otherwise, arising from, out of, or in connection
-// with the software or the use or other dealings in the software.
-// 
-// SUPPORT
-// Send bug reports to: <nielsen@memberwebs.com>
-//
+/* 
+ * AUTHOR
+ * N. Nielsen
+ *
+ * LICENSE
+ * This software is in the public domain.
+ *
+ * The software is provided "as is", without warranty of any kind,
+ * express or implied, including but not limited to the warranties
+ * of merchantability, fitness for a particular purpose, and
+ * noninfringement. In no event shall the author(s) be liable for any
+ * claim, damages, or other liability, whether in an action of
+ * contract, tort, or otherwise, arising from, out of, or in connection
+ * with the software or the use or other dealings in the software.
+ * 
+ * SUPPORT
+ * Send bug reports to: <nielsen@memberwebs.com>
+ */
 
+#ifndef __NTFSX_H__
+#define __NTFSX_H__
 
-// ntfsx
-//
-//////////////////////////////////////////////////////////////////////
-
-#if !defined(AFX_NTFSX__9363C7D2_D3CC_4D49_BEE0_27AD025670F2__INCLUDED_)
-#define AFX_NTFSX__9363C7D2_D3CC_4D49_BEE0_27AD025670F2__INCLUDED_
-
-#if _MSC_VER > 1000
-#pragma once
-#endif // _MSC_VER > 1000
-
+#include "drive.h"
 #include "ntfs.h"
 
-class NTFS_DataRun
+
+/* used as a heap based object */
+typedef struct _ntfsx_datarun
 {
-public:
-	NTFS_DataRun(byte* pClus, byte* pDataRun);
-	~NTFS_DataRun()
-		{ refrelease(m_pMem); }
+  byte* _mem; /* ref counted */
+  byte* _datarun;
+  byte* _curpos;
 
-	bool First();
-	bool Next();
+  bool sparse;
+  uint64 cluster;
+  uint64 length;
+}
+ntfsx_datarun;
 
-	uint64 m_firstCluster;
-	uint64 m_numClusters;
-	bool m_bSparse; 
+ntfsx_datarun* ntfsx_datarun_alloc(byte* mem, byte* datarun);
+void ntfsx_datarun_free(ntfsx_datarun* dr);
+bool ntfsx_datarun_first(ntfsx_datarun* dr);
+bool ntfsx_datarun_next(ntfsx_datarun* dr);
 
-protected:
-	byte* m_pMem;
-	byte* m_pDataRun;
-	byte* m_pCurPos;
-};
 
-class NTFS_Cluster
+
+/* used as a stack based object */
+typedef struct _ntfsx_cluster
 {
-public:
-	NTFS_Cluster()
-		{ m_pCluster = NULL; };
-	~NTFS_Cluster()
-		{ Free(); }
+	uint32 size;
+	byte* data; /* ref counted */
+}
+ntfsx_cluster;
 
-	bool New(PartitionInfo* pInfo);
-	bool Read(PartitionInfo* pInfo, uint64 begSector, HANDLE hIn);
-	void Free();
-
+bool ntfsx_cluster_reserve(ntfsx_cluster* clus, partitioninfo* info);
+bool ntfsx_cluster_read(ntfsx_cluster* clus, partitioninfo* info, uint64 begSector, int dd);
+void ntfsx_cluster_release(ntfsx_cluster* clus);
 	
-	uint32 m_cbCluster;
-	byte* m_pCluster;
-};
-	
-class NTFS_Attribute
+
+
+/* used as a heap based object */
+typedef struct _ntfsx_attribute
 {
-public:
-	NTFS_Attribute(NTFS_Cluster& clus, NTFS_AttribHeader* pHeader);
-	~NTFS_Attribute()
-		{ refrelease(m_pMem); }
+	ntfs_attribheader* _header;
+	byte* _mem;   /* ref counted */
+	uint32 _length;
+} 
+ntfsx_attribute;
 
-	NTFS_AttribHeader* GetHeader()
-		{ return m_pHeader; }
-
-	void* GetResidentData();
-	uint32 GetResidentSize();
-
-	NTFS_DataRun* GetDataRun();
-
-	bool NextAttribute(uint32 attrType);
+ntfsx_attribute* ntfsx_attribute_alloc(ntfsx_cluster* clus, ntfs_attribheader* header);
+void ntfsx_attribute_free(ntfsx_attribute* attr);
+ntfs_attribheader* ntfsx_attribute_header(ntfsx_attribute* attr);
+void* ntfsx_attribute_getresidentdata(ntfsx_attribute* attr);
+uint32 ntfsx_attribute_getresidentsize(ntfsx_attribute* attr);
+ntfsx_datarun* ntfsx_attribute_getdatarun(ntfsx_attribute* attr);
+bool ntfsx_attribute_next(ntfsx_attribute* attr, uint32 attrType);
 
 
-protected:
-	NTFS_AttribHeader* m_pHeader;
-	byte* m_pMem;
-	uint32 m_cbMem;
-};
 
-class NTFS_Record : 
-  public NTFS_Cluster
+/* used as a heap based object */
+typedef struct _ntfsx_record
 {
-public:
-	NTFS_Record(PartitionInfo* pInfo);
-	~NTFS_Record();
+  partitioninfo* info;
+  ntfsx_cluster _clus;
+}
+ntfsx_record;
 
-	bool Read(uint64 begSector, HANDLE hIn);
-	NTFS_RecordHeader* GetHeader()
-		{ return (NTFS_RecordHeader*)m_pCluster; }
+ntfsx_record* ntfsx_record_alloc(partitioninfo* info);
+void ntfsx_record_free(ntfsx_record* record);
+bool ntfsx_record_read(ntfsx_record* record, uint64 begSector, int dd);
+ntfs_recordheader* ntfsx_record_header(ntfsx_record* record);
+ntfsx_attribute* ntfsx_record_findattribute(ntfsx_record* record, uint32 attrType, int dd);
 
-	NTFS_Attribute* FindAttribute(uint32 attrType, HANDLE hIn);
 
-protected:
-	PartitionInfo* m_pInfo;
-};
 
-class NTFS_MFTMap
+/* used as a stack based object */
+struct _ntfsx_mftmap_block;
+typedef struct _ntfsx_mftmap
 {
-public:
-  NTFS_MFTMap(PartitionInfo* pInfo);
-  ~NTFS_MFTMap();
+  partitioninfo* info;
+  struct _ntfsx_mftmap_block* _blocks;
+  uint32 _count;
+}
+ntfsx_mftmap;
 
-  bool Load(NTFS_Record* pRecord, HANDLE hIn);
+void ntfsx_mftmap_init(ntfsx_mftmap* map,partitioninfo* info);
+void ntfsx_mftmap_destroy(ntfsx_mftmap* map);
+bool ntfsx_mftmap_load(ntfsx_mftmap* map, ntfsx_record* record, int dd);
+uint64 ntfsx_mftmap_length(ntfsx_mftmap* map);
+uint64 ntfsx_mftmap_sectorforindex(ntfsx_mftmap* map, uint64 index);
 
-  uint64 GetLength();
-  uint64 SectorForIndex(uint64 index);
-
-protected:
-  PartitionInfo* m_pInfo;
-
-  struct NTFS_Block
-  {
-    uint64 firstSector;   // relative to the entire drive
-    uint64 length;        // length in MFT records
-  };
-
-  NTFS_Block* m_pBlocks;
-  uint32 m_count;
-};
-
-#endif // !defined(AFX_NTFSX__9363C7D2_D3CC_4D49_BEE0_27AD025670F2__INCLUDED_)
+#endif 
