@@ -72,10 +72,4 @@
 #define min(a,b)  (((a) < (b)) ? (a) : (b))
 #endif
 
-#ifdef _WIN32
-  #define UL(x)   x
-#else
-  #define UL(x)   x#LL
-#endif
-
 #endif /* __USUALS_H__ */

@@ -109,7 +109,7 @@ void processRecordFileBasics(partitioninfo* pi, ntfsx_record* record, filebasics
 
 
 				/* Parent Directory */
-        basics->parent = filename->refParent & UL(0xFFFFFFFFFFFF);
+        basics->parent = filename->refParent & kNTFS_RefMask;
 
 
 				/* Namespace */

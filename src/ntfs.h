@@ -60,6 +60,12 @@ ntfs_bootsector;
 #define kNTFS_RecFlagUse    0x01
 #define kNTFS_RecFlagDir    0x02
 
+#ifdef _WIN32
+  #define kNTFS_RefMask 0xFFFFFFFFFFFF
+#else
+  #define kNTFS_RefMask 0xFFFFFFFFFFFFLL
+#endif
+
 typedef struct _ntfs_recordheader
 {
 	uint32 magic;			    /* Magic number 'FILE' */

@@ -10,7 +10,7 @@
 /* #undef HAVE_BYTE */
 
 /* Define to 1 if you have the `chdir' function. */
-#define HAVE_CHDIR 1
+/* #define HAVE_CHDIR 1 */
 
 /* Define to 1 if you have the `chmod' function. */
 /* #define HAVE_CHMOD 1 */
@@ -25,7 +25,7 @@
 #define HAVE_FCNTL_H 1
 
 /* Define to 1 if you have the `getcwd' function. */
-#define HAVE_GETCWD 1
+/* #define HAVE_GETCWD 1 */
 
 /* Define to 1 if you have the `getopt' function. */
 /* #define HAVE_GETOPT 1 */
@@ -52,7 +52,7 @@
 /* #define HAVE_INTTYPES_H 1 */
 
 /* Define to 1 if you have the <io.h> header file. */
-/* #undef HAVE_IO_H */
+#define HAVE_IO_H 1
 
 /* Define to 1 if you have the `itoa' function. */
 /* #undef HAVE_ITOA */
@@ -148,7 +148,7 @@
 /* #define HAVE_UINT64_T 1 */
 
 /* Define to 1 if you have the <unistd.h> header file. */
-#define HAVE_UNISTD_H 1
+/* #define HAVE_UNISTD_H 1 */
 
 /* Define to 1 if you have the `utimes' function. */
 /* #define HAVE_UTIMES 1 */

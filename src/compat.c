@@ -87,20 +87,7 @@ int getopt(int nargc, char* const* nargv, const char* ostr)
             return (-1);
         }
 
-		if (place[1] && *++place == '-')            #include <sys/types.h>
-
-     void *malloc ();
-
-     /* Allocate an N-byte block of memory from the heap.
-        If N is zero, allocate a 1-byte block.  */
-
-     void *
-     rpl_malloc (size_t n)
-     {
-       if (n == 0)
-         n = 1;
-       return malloc (n);
-     }/* found "--" */
+		if (place[1] && *++place == '-')            /* found "--" */
 		{
 			++optind;
             place = EMSG;
@@ -151,20 +138,6 @@ int getopt(int nargc, char* const* nargv, const char* ostr)
 	return (optopt);                        /* dump back option letter */
 }
 #endif
-     #include <sys/types.h>
-
-     void *malloc ();
-
-     /* Allocate an N-byte block of memory from the heap.
-        If N is zero, allocate a 1-byte block.  */
-
-     void *
-     rpl_malloc (size_t n)
-     {
-       if (n == 0)
-         n = 1;
-       return malloc (n);
-     }
 
 #ifndef HAVE_ERR_H
 
@@ -412,19 +385,4 @@ char* itoa(int val, char* out, int radix)
 
   return out;
 }
-#endif
-
-#if HAVE_MALLOC == 0
-#undef malloc
-
-/* Allocate an N-byte block of memory from the heap.
-   If N is zero, allocate a 1-byte block.  */
-
-void* rpl_malloc (size_t n)
-{
-  if (n == 0)
-    n = 1;
-  return malloc (n);
-}
-
 #endif

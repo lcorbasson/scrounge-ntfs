@@ -22,25 +22,25 @@
 
 /* Force use of win32 configuration if compiling there */
 #ifdef _WIN32
-#include "../config.win32.h"
+#include "config.win32.h"
 #else
 #ifdef HAVE_CONFIG_H
-#include "../config.h"
+#include "config.h"
 #endif
 #endif
 
 #include <sys/types.h>
 
 #ifndef MAX_PATH
-  #ifdef _MAX_PATH
-    #define MAX_PATH _MAX_PATH
-  #else
-    #define MAX_PATH 256
-  #endif
+#ifdef _MAX_PATH
+#define MAX_PATH _MAX_PATH
+#else
+#define MAX_PATH 256
+#endif
 #endif
 
 #ifndef HAVE_STDARG_H
-#error ERROR: Must have a working <stdarg.h> header
+#error ERROR: Must have a working stdarg.h header
 #else
 #include <stdarg.h>
 #endif
@@ -83,7 +83,9 @@ typedef unsigned char byte;
 typedef unsigned int uint;
 #endif
 
+#ifdef HAVE_STDINT_H
 #include <stdint.h>
+#endif
 
 #ifndef HAVE_UINT64
   #ifdef HAVE_UINT64_T
@@ -174,20 +176,7 @@ void err_set_file(void *fp);
 void err_set_exit(void (*ef)(int));
 void err(int eval, const char *fmt, ...);
 void verr(int eval, const char *fmt, va_list ap);
-void errc(int eval, int c     #include <sys/types.h>
-
-     void *malloc ();
-
-     /* Allocate an N-byte block of memory from the heap.
-        If N is zero, allocate a 1-byte block.  */
-
-     void *
-     rpl_malloc (size_t n)
-     {
-       if (n == 0)
-         n = 1;
-       return malloc (n);
-     }ode, const char *fmt, ...);
+void errc(int eval, int code, const char *fmt, ...);
 void verrc(int eval, int code, const char *fmt, va_list ap);
 void errx(int eval, const char *fmt, ...);
 void verrx(int eval, const char *fmt, va_list ap);
@@ -200,7 +189,7 @@ void vwarnx(const char *fmt, va_list ap);
 #endif
 
 #ifndef HAVE_REALLOCF
-void* reallocf(void* ptr, size_t size);
+void* reallocf(void* p, size_t sz);
 #endif
 
 /* Some number conversion stuff */
@@ -326,7 +315,7 @@ void* reallocf(void* ptr, size_t size);
   #ifdef _WIN32
     #define lseek64 _lseeki64
   #else
-    #if ( SIZEOF_OFF_T == 8 )
+    #if SIZEOF_OFF_T == 8
       #define lseek64 lseek
     #else
       #error ERROR: Must have a working 64 bit seek function
