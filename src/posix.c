@@ -94,7 +94,10 @@ void setFileAttributes(fchar_t* filename, uint32 flags)
     }
     else
     {
-      if(chmod(filename, st.st_mode & ~(S_IWUSR | S_IWGRP | S_IWOTH)) == -1)
+      st.st_mode &= ~(S_IWUSR | S_IWGRP | S_IWOTH);
+	fprintf(stderr, "mode: %x", st.st_mode);
+
+      if(chmod(filename, st.st_mode) == -1)
         warn("couldn't set file attributes for: " FC_PRINTF, encoded);
     }
   }

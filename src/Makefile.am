@@ -1,4 +1,4 @@
-bin_PROGRAMS = scrounge-ntfs
+sbin_PROGRAMS = scrounge-ntfs
 
 scrounge_ntfs_SOURCES = compat.c compat.h debug.h drive.h list.c locks.h main.c memref.h \
                         misc.c ntfs.c ntfs.h ntfsx.h ntfsx.c posix.c scrounge.c scrounge.h \

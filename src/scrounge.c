@@ -24,6 +24,8 @@
 #include "locks.h"
 
 #define PROCESS_MFT_FLAG_SUB      1 << 1
+#define DEF_FILE_MODE 0x180
+#define DEF_DIR_MODE 0x1C0
 
 typedef struct _filebasics
 {
@@ -212,7 +214,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
         if(!g_verifyMode)
 #endif
         {
-          if(fc_mkdir(basics.filename) == -1)
+          if(fc_mkdir(basics.filename, DEF_DIR_MODE) == -1)
           {
             warn("couldn't create directory '" FC_PRINTF "' putting files in parent directory", basics.filename);
           }
@@ -244,7 +246,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
     else
 #endif
     {
-      ofile = fc_open(basics.filename, O_BINARY | O_CREAT | O_EXCL | O_WRONLY);
+      ofile = fc_open(basics.filename, O_BINARY | O_CREAT | O_EXCL | O_WRONLY, DEF_FILE_MODE);
   
       fcsncpy(filename2, basics.filename, MAX_PATH);
       filename2[MAX_PATH] = 0;
@@ -263,7 +265,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
         itofc(rename, basics.filename + fcslen(basics.filename), 10);
         rename++;
 
-        ofile = fc_open(basics.filename, O_BINARY | O_CREAT | O_EXCL | O_WRONLY);
+        ofile = fc_open(basics.filename, O_BINARY | O_CREAT | O_EXCL | O_WRONLY, DEF_FILE_MODE);
       }
 
       if(ofile == -1)
@@ -559,8 +561,8 @@ void scroungeUsingMFT(partitioninfo* pi)
 
 void scroungeUsingRaw(partitioninfo* pi)
 {
-	byte buffSec[kSectorSize];
-	fchar_t dir[MAX_PATH + 1];
+  byte buffSec[kSectorSize];
+  fchar_t dir[MAX_PATH + 1];
   uint64 sec;
   drivelocks locks;
   int64 pos;

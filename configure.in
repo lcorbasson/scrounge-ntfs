@@ -36,8 +36,8 @@ dnl  Nate Nielsen <nielsen@memberwebs.com>
 dnl
 
 dnl Process this file with autoconf to produce a configure script.
-AC_INIT(scrounge-ntfs, 0.8.1, nielsen@memberwebs.com)
-AM_INIT_AUTOMAKE(scrounge-ntfs, 0.8.1)
+AC_INIT(scrounge-ntfs, 0.8.5, nielsen@memberwebs.com)
+AM_INIT_AUTOMAKE(scrounge-ntfs, 0.8.5)
 
 LDFLAGS="$LDFLAGS -L/usr/local/lib"
 CFLAGS="$CFLAGS -I/usr/local/include"

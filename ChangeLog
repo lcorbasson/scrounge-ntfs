@@ -1,0 +1,14 @@
+0.9
+ - Ported to Linux/FreeBSD
+ - Support for very fragmented MFTs
+ - Fixed memory leaks
+ - Fixed many bugs
+
+0.8
+ - Support for non-contiguous MFT
+ - Better support for WinXP NTFS
+ - Other bug fixes
+
+0.7
+ - Initial public release
+
