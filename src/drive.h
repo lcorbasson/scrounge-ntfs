@@ -23,10 +23,10 @@
 #include "usuals.h"
 
 #define kSectorSize     0x200
-#define kInvalidSector  0xFFFFFFFFFFFFFFFF
+#define kInvalidSector  0xFFFFFFFFFFFFFFFFLL
 
-typedef struct _ntfsx_mftmap ntfsx_mftmap;
-typedef struct _drivelocks drivelocks;
+struct _ntfsx_mftmap;
+struct _drivelocks;
 
 typedef struct _partitioninfo
 {
@@ -37,12 +37,11 @@ typedef struct _partitioninfo
   int device;     /* A handle to an open device */
 
   /* Some other context stuff about the drive */
-  drivelocks* locks;
-  ntfsx_mftmap* mftmap;
+  struct _drivelocks* locks;
+  struct _ntfsx_mftmap* mftmap;
 } 
 partitioninfo;
 
-#pragma pack(push, drive)
 #pragma pack(1)
 
 #define kPartition_Invalid      0
@@ -77,7 +76,7 @@ typedef struct _drive_mbr
 }
 drive_mbr;
 
-#pragma pack(pop, drive)
+#pragma pack()
 
 #define CLUSTER_TO_SECTOR(info, clus) (((clus) * (info).cluster) + (info).first)
 #define SECTOR_TO_BYTES(sec) ((sec) * kSectorSize)

@@ -1,0 +1,8 @@
+======================================================================
+                      SCROUNGE-NTFS INSTALL
+
+QUICK INSTALLATION:
+ # tar -zxvf scrounge-0.8.1.tar.gz
+ # ./configure
+ # make && make install
+

@@ -87,7 +87,20 @@ int getopt(int nargc, char* const* nargv, const char* ostr)
             return (-1);
         }
 
-		if (place[1] && *++place == '-')       /* found "--" */
+		if (place[1] && *++place == '-')            #include <sys/types.h>
+
+     void *malloc ();
+
+     /* Allocate an N-byte block of memory from the heap.
+        If N is zero, allocate a 1-byte block.  */
+
+     void *
+     rpl_malloc (size_t n)
+     {
+       if (n == 0)
+         n = 1;
+       return malloc (n);
+     }/* found "--" */
 		{
 			++optind;
             place = EMSG;
@@ -138,7 +151,20 @@ int getopt(int nargc, char* const* nargv, const char* ostr)
 	return (optopt);                        /* dump back option letter */
 }
 #endif
+     #include <sys/types.h>
 
+     void *malloc ();
+
+     /* Allocate an N-byte block of memory from the heap.
+        If N is zero, allocate a 1-byte block.  */
+
+     void *
+     rpl_malloc (size_t n)
+     {
+       if (n == 0)
+         n = 1;
+       return malloc (n);
+     }
 
 #ifndef HAVE_ERR_H
 
@@ -344,18 +370,18 @@ wchar_t* itow(int val, wchar_t* out, int radix)
 #endif
 
 #ifndef HAVE_ITOA
-wchar_t* itow(int val, wchar_t* out, int radix)
+char* itoa(int val, char* out, int radix)
 {
   int mod;
-  wchar_t temp;
-  wchar_t* end = out;
-  wchar_t* beg = out;
+  char temp;
+  char* end = out;
+  char* beg = out;
 
   if(val != 0)
   {
     /* If negative and decimal*/
     if(radix == 10 && val < 0)
-      *beg++ = L'-';
+      *beg++ = '-';
 
     /* Convert in reverse order */
     while(val != 0)
@@ -363,7 +389,7 @@ wchar_t* itow(int val, wchar_t* out, int radix)
       mod = val % radix;
       val = val / radix;
 
-      *end++ = (mod < 10) ? L'0' + mod : L'a' + mod - 10;
+      *end++ = (mod < 10) ? '0' + mod : 'a' + mod - 10;
     }
 
     *end-- = 0;
@@ -380,10 +406,25 @@ wchar_t* itow(int val, wchar_t* out, int radix)
   }
   else
   {
-    beg[0] = L'0';
+    beg[0] = '0';
     beg[1] = 0;
   }
 
   return out;
 }
+#endif
+
+#if HAVE_MALLOC == 0
+#undef malloc
+
+/* Allocate an N-byte block of memory from the heap.
+   If N is zero, allocate a 1-byte block.  */
+
+void* rpl_malloc (size_t n)
+{
+  if (n == 0)
+    n = 1;
+  return malloc (n);
+}
+
 #endif

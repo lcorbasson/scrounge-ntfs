@@ -24,9 +24,7 @@
 #include "stddef.h"
 #include "drive.h"
 
-#pragma pack(push, ntfs)
 #pragma pack(1)
-
 
 /* WARNING Assumptions: */
 #define kNTFS_RecordLen   0x0400
@@ -149,7 +147,11 @@ ntfs_attribnonresident;
 #define kNTFS_NameSpaceDOS      0x02
 #define kNTFS_NameSpaceWINDOS   0x03
 
+#ifdef FC_WIDE
 #define kNTFS_MFTName           L"$MFT"
+#else
+#define kNTFS_MFTName           "$MFT"
+#endif
 
 typedef struct _ntfs_attribfilename
 {
@@ -181,7 +183,7 @@ typedef struct _ntfs_attriblistrecord
 }
 ntfs_attriblistrecord;
 
-#pragma pack(pop, ntfs)
+#pragma pack()
 
 ntfs_attribheader* ntfs_findattribute(ntfs_recordheader* record, uint32 attrType, byte* end);
 ntfs_attribheader* ntfs_nextattribute(ntfs_attribheader* attrib, uint32 attrType, byte* end);
@@ -193,6 +195,6 @@ bool ntfs_dofixups(byte* cluster, uint32 size);
 
 /* TODO: Move these declarations elsewhere */
 char* unicode_transcode16to8(const wchar_t* src, size_t len);
-wchar_t* unicode_transcode8to16(const char* src, const wchar_t* out, size_t len);
+wchar_t* unicode_transcode8to16(const char* src, wchar_t* out, size_t len);
 
 #endif /* __NTFS_H__ */

@@ -90,7 +90,7 @@ void processRecordFileBasics(partitioninfo* pi, ntfsx_record* record, filebasics
 #ifdef FC_WIDE
         wcsncpy(basics->filename, name, len);
 #else
-        temp = unicode_transcode16to8(basics->filename, len);
+        temp = unicode_transcode16to8(name, len);
         if(!temp)
           errx(1, "out of memory");
 
@@ -109,7 +109,7 @@ void processRecordFileBasics(partitioninfo* pi, ntfsx_record* record, filebasics
 
 
 				/* Parent Directory */
-        basics->parent = filename->refParent & 0xFFFFFFFFFFFF;
+        basics->parent = filename->refParent & 0xFFFFFFFFFFFFLL;
 
 
 				/* Namespace */
@@ -196,16 +196,16 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, int level)
     if(header->flags & kNTFS_RecFlagDir)
     {
       /* Try to change to the directory */
-      if(wchdir(basics.filename) == -1)
+      if(fc_chdir(basics.filename) == -1)
       {
-        if(wmkdir(basics.filename) == -1)
+        if(fc_mkdir(basics.filename) == -1)
         {
           warnx("couldn't create directory '" FC_PRINTF "' putting files in parent directory", basics.filename);
         }
         else
         {
           setFileAttributes(basics.filename, basics.flags);
-          wchdir(basics.filename);
+          fc_chdir(basics.filename);
         }
       }
 
@@ -214,7 +214,7 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, int level)
 
 
     /* Normal file handling: */
-    outfile = wopen(basics.filename, _O_BINARY | _O_CREAT | _O_EXCL | _O_WRONLY);
+    outfile = fc_open(basics.filename, O_BINARY | O_CREAT | O_EXCL | O_WRONLY);
   
     fcsncpy(filename2, basics.filename, MAX_PATH);
     filename2[MAX_PATH] = 0;
@@ -228,12 +228,12 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, int level)
       }
 
       fcscpy(basics.filename, filename2);
-      fcscat(basics.filename, L".");
+      fcscat(basics.filename, FC_DOT);
 
       itofc(rename, basics.filename + fcslen(basics.filename), 10);
       rename++;
 
-      outfile = fc_open(basics.filename, _O_BINARY | _O_CREAT | _O_EXCL | _O_WRONLY);
+      outfile = fc_open(basics.filename, O_BINARY | O_CREAT | O_EXCL | O_WRONLY);
     }
 
     if(outfile == -1)
@@ -462,7 +462,7 @@ void scroungeUsingMFT(partitioninfo* pi)
 void scroungeUsingRaw(partitioninfo* pi)
 {
 	byte buffSec[kSectorSize];
-	fchar_t dir[_MAX_PATH + 1];
+	fchar_t dir[MAX_PATH + 1];
   uint64 sec;
   drivelocks locks;
   int64 pos;
@@ -472,7 +472,7 @@ void scroungeUsingRaw(partitioninfo* pi)
   fprintf(stderr, "[Scrounging raw records...]\n");
 
 	/* Save current directory away */
-	fc_getcwd(dir, _MAX_PATH);
+	fc_getcwd(dir, MAX_PATH);
 
   /* Get the locks ready */
   memset(&locks, 0, sizeof(locks));
@@ -486,7 +486,7 @@ void scroungeUsingRaw(partitioninfo* pi)
 
   	/* Read	the record */
     pos = SECTOR_TO_BYTES(sec);
-    if(_lseeki64(pi->device, pos, SEEK_SET) == -1)
+    if(lseek64(pi->device, pos, SEEK_SET) == -1)
       errx(1, "can't seek device to sector");
 
     sz = read(pi->device, buffSec, kSectorSize);

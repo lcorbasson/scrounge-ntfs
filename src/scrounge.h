@@ -23,7 +23,9 @@
 #include "drive.h"
 
 void scroungeSearch(partitioninfo* pi);
+#ifdef _WIN32
 void scroungeList();
+#endif
 void scroungeListDrive(char* drive);
 void scroungeUsingMFT(partitioninfo* pi);
 void scroungeUsingRaw(partitioninfo* pi);

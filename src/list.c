@@ -99,7 +99,7 @@ int printPartitionInfo(int dd, uint64 tblSector)
 	return 0;
 }
 
-
+#ifdef _WIN32
 void scroungeList()
 {
 	char driveName[MAX_PATH];
@@ -113,7 +113,7 @@ void scroungeList()
 	{
     makeDriveName(driveName, i);
 
-    dd = open(driveName, _O_BINARY | _O_RDONLY | OPEN_LARGE_OPTS);
+    dd = open(driveName, O_BINARY | O_RDONLY | OPEN_LARGE_OPTS);
     if(dd != -1)
     {
 			printf(kPrintDrive, i);
@@ -122,14 +122,15 @@ void scroungeList()
 		}
 	}
 }
+#endif
 
 void scroungeListDrive(char* drive)
 {
-  int dd = open(driveName, _O_BINARY | _O_RDONLY | OPEN_LARGE_OPTS;
+  int dd = open(drive, O_BINARY | O_RDONLY | OPEN_LARGE_OPTS);
   if(dd == -1)
-    err(1, "couldn't open drive: %s", driveName);
+    err(1, "couldn't open drive: %s", drive);
 
-  printf(kPrintDrivePath, driveName);
+  printf(kPrintDrivePath, drive);
   printPartitionInfo(dd, 0);
   close(dd);
 }

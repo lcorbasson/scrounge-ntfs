@@ -144,7 +144,7 @@ bool ntfsx_cluster_read(ntfsx_cluster* clus, partitioninfo* info, uint64 begSect
   }
 
   pos = SECTOR_TO_BYTES(begSector);
-  if(_lseeki64(dd, pos, SEEK_SET) == -1)
+  if(lseek64(dd, pos, SEEK_SET) == -1)
     return false;
 
   sz = read(dd, clus->data, clus->size);
@@ -316,7 +316,7 @@ ntfsx_attribute* ntfsx_record_findattribute(ntfsx_record* record, uint32 attrTyp
 				if(atlr->type == attrType)
 				{
 					/* Read in appropriate cluster */
-          mftRecord = ntfsx_mftmap_sectorforindex(record->info->mftmap, atlr->refAttrib & 0xFFFFFFFFFFFF);
+          mftRecord = ntfsx_mftmap_sectorforindex(record->info->mftmap, atlr->refAttrib & 0xFFFFFFFFFFFFLL);
 
 					r2 = ntfsx_record_alloc(record->info);
           if(!r2)

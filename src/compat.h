@@ -29,6 +29,8 @@
 #endif
 #endif
 
+#include <sys/types.h>
+
 #ifndef MAX_PATH
   #ifdef _MAX_PATH
     #define MAX_PATH _MAX_PATH
@@ -75,106 +77,82 @@ typedef unsigned char bool;
 
 #ifndef HAVE_BYTE
 typedef unsigned char byte;
-#define HAVE_BYTE
 #endif
 
 #ifndef HAVE_UINT
 typedef unsigned int uint;
-#define HAVE_UINT
 #endif
+
+#include <stdint.h>
 
 #ifndef HAVE_UINT64
-  #ifdef _WIN32
-    typedef unsigned __int64 uint64;
+  #ifdef HAVE_UINT64_T
+    typedef uint64_t uint64;
   #else
-    #ifdef HAVE_64BITLONGLONG
-      typedef unsigned long long uint64;
+    #ifdef _WIN32
+      typedef unsigned __int64 uint64;
     #else
-      #ifdef HAVE_64BITLONG
-        typedef unsigned long uint64;
-      #else
-        #error ERROR: Must have a compiler that can handle 64 bit integers
-      #endif
-    #endif
-  #endif
-#endif
-
-#ifndef HAVE_UINT32
-  #ifdef _WIN32
-    typedef unsigned __int32 uint32;
-  #else
-    #ifdef HAVE_32BITLONG
-      typedef unsigned long uint32;
-    #else
-      #ifdef HAVE_32BITINT
-        typedef unsigned int uint32;
-      #else
-        #error ERROR: Couldn't find a 32 bit integer to use
-      #endif
-    #endif
-  #endif
-#endif
-
-#ifndef HAVE_UINT16
-  #ifdef _WIN32
-    typedef unsigned __int16 uint16;
-  #else
-    #ifdef HAVE_16BITSHORT
-      typedef unsigned short uint16;
-    #else
-      #ifdef HAVE_16BITINT
-        typedef unsigned int uint16;
-      #else
-        #error ERROR: Couldn't find a 16 bit integer to use
-      #endif
+      #error ERROR: Must have a compiler that can handle 64 bit integers
     #endif
   #endif
 #endif
 
 #ifndef HAVE_INT64
-  #ifdef _WIN32
-    typedef signed __int64 int64;
+  #ifdef HAVE_INT64_T
+    typedef int64_t int64;
   #else
-    #ifdef HAVE_64BITLONGLONG
-      typedef signed long long int64;
+    #ifdef _WIN32
+      typedef signed __int64 int64;
     #else
-      #ifdef HAVE_64BITLONG
-        typedef signed long int64;
-      #else
-        #error ERROR: Must have a compiler that can handle 64 bit integers
-      #endif
+      #error ERROR: Must have a compiler that can handle 64 bit integers
+    #endif
+  #endif
+#endif
+
+#ifndef HAVE_UINT32
+  #ifdef HAVE_UINT32_T
+    typedef uint32_t uint32;
+  #else
+    #ifdef _WIN32
+      typedef unsigned __int32 uint32;
+    #else
+      #error ERROR: Couldnt determine a 32 bit integer
     #endif
   #endif
 #endif
 
 #ifndef HAVE_INT32
-  #ifdef _WIN32
-    typedef signed __int32 int32;
+  #ifdef HAVE_INT32_T
+    typedef int32_t int32;
   #else
-    #ifdef HAVE_32BITLONG
-      typedef signed long int32;
+    #ifdef _WIN32
+      typedef signed __int32 int32;
     #else
-      #ifdef HAVE_32BITINT
-        typedef signed int int32;
-      #else
-        #error ERROR: Couldn't find a 32 bit integer to use
-      #endif
+      #error ERROR: Couldnt determine a 32 bit integer
+    #endif
+  #endif
+#endif
+
+#ifndef HAVE_UINT16
+  #ifdef HAVE_UINT16_T
+    typedef uint16_t uint16;
+  #else
+    #ifdef _WIN32
+      typedef unsigned __int16 uint16;
+    #else
+      #error ERROR: Couldnt determine a 16 bit integer
     #endif
   #endif
 #endif
 
 #ifndef HAVE_INT16
-  #ifdef _WIN32
-    typedef signed __int16 int16;
+  #ifdef HAVE_INT16_T
+    typedef int16_t int16;
   #else
-    #ifdef HAVE_16BITSHORT
-      typedef signed short int16;
+    #ifdef _WIN32
+      typedef signed __int16 int16;
     #else
-      #ifdef HAVE_16BITINT
-        typedef signed int int16;
-      #else
-        #error ERROR: Couldn't find a 16 bit integer to use
-      #endif
+      #error ERROR: Couldnt determine a 16 bit integer
     #endif
   #endif
 #endif
@@ -196,7 +174,20 @@ void err_set_file(void *fp);
 void err_set_exit(void (*ef)(int));
 void err(int eval, const char *fmt, ...);
 void verr(int eval, const char *fmt, va_list ap);
-void errc(int eval, int code, const char *fmt, ...);
+void errc(int eval, int c     #include <sys/types.h>
+
+     void *malloc ();
+
+     /* Allocate an N-byte block of memory from the heap.
+        If N is zero, allocate a 1-byte block.  */
+
+     void *
+     rpl_malloc (size_t n)
+     {
+       if (n == 0)
+         n = 1;
+       return malloc (n);
+     }ode, const char *fmt, ...);
 void verrc(int eval, int code, const char *fmt, va_list ap);
 void errx(int eval, const char *fmt, ...);
 void verrx(int eval, const char *fmt, va_list ap);
@@ -213,13 +204,14 @@ void* reallocf(void* ptr, size_t size);
 #endif
 
 /* Some number conversion stuff */
+#include <wchar.h>
 
 #ifndef HAVE_ITOW
   #ifdef _WIN32
     #define itow _itow
     #define HAVE_ITOW 1
   #else
-    wchar_t itow(int v, wchar_t* s, int r);
+    wchar_t* itow(int v, wchar_t* s, int r);
   #endif
 #endif
 
@@ -228,7 +220,7 @@ void* reallocf(void* ptr, size_t size);
     #define itoa _itoa
     #define HAVE_ITOA 1
   #else
-    char itoa(int v, char* s, int r);
+    char* itoa(int v, char* s, int r);
   #endif
 #endif
 
@@ -316,6 +308,7 @@ void* reallocf(void* ptr, size_t size);
   #define fc_getcwd getcwd
 
   #define fcscpy strcpy
+  #define fcsncpy strncpy
   #define fcscat strcat
   #define fcslen strlen
   #define fcscmp strcmp
@@ -333,7 +326,7 @@ void* reallocf(void* ptr, size_t size);
   #ifdef _WIN32
     #define lseek64 _lseeki64
   #else
-    #ifdef HAVE_64BITOFFT
+    #if ( SIZEOF_OFF_T == 8 )
       #define lseek64 lseek
     #else
       #error ERROR: Must have a working 64 bit seek function
@@ -341,10 +334,28 @@ void* reallocf(void* ptr, size_t size);
   #endif
 #endif
 
-#include <fnctl.h>
+#include <fcntl.h>
 #ifdef O_LARGEFILE
   #define OPEN_LARGE_OPTS O_LARGEFILE
 #else
   #define OPEN_LARGE_OPTS 0
 #endif
 
+#ifndef O_BINARY
+  #ifdef _O_BINARY
+    #define O_BINARY _O_BINARY
+  #else
+    #define O_BINARY 0
+  #endif
+#endif
+
+#ifndef O_RDONLY
+  #ifdef _O_RDONLY
+    #define O_RDONLY _O_RDONLY
+  #else
+    #error ERROR: No O_RDONLY flag found
+  #endif
+#endif
+
+
+#endif /* _COMPAT_H_ */

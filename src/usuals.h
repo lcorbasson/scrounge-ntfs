@@ -64,4 +64,12 @@
 #define INTERSECTS(b1, e1, b2, e2) \
 	((b1) < (e2) && (e1) > (b2))
 
+#ifndef max
+#define max(a,b)  (((a) > (b)) ? (a) : (b))
+#endif
+
+#ifndef min
+#define min(a,b)  (((a) < (b)) ? (a) : (b))
+#endif
+
 #endif /* __USUALS_H__ */

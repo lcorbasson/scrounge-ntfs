@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
   int mode = 0;
   int raw = 0;
   partitioninfo pi;
-  char driveName[MAX_PATH];
+  char driveName[MAX_PATH + 1];
 #ifdef _WIN32
   int drive = 0;
 #endif
@@ -191,7 +191,9 @@ int main(int argc, char* argv[])
   if(argc < 1)
     errx(2, "must specify drive name");
 
-  driveName = argv[0];
+  strncpy(driveName, argv[0], MAX_PATH);
+  driveName[MAX_PATH] = 0;
+
   argv++;
   argc--;
 #endif
@@ -220,7 +222,7 @@ int main(int argc, char* argv[])
     pi.end = temp;
 
     /* Open the device */
-    pi.device = open(driveName, _O_BINARY | _O_RDONLY | OPEN_LARGE_OPTS);
+    pi.device = open(driveName, O_BINARY | O_RDONLY | OPEN_LARGE_OPTS);
     if(pi.device == -1)
       err(1, "couldn't open drive: %s", driveName);
 

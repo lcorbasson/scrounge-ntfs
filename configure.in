@@ -1,0 +1,81 @@
+dnl
+dnl Copyright (c) 2004, Nate Nielsen
+dnl All rights reserved.
+dnl
+dnl Redistribution and use in source and binary forms, with or without
+dnl modification, are permitted provided that the following conditions
+dnl are met:
+dnl
+dnl     * Redistributions of source code must retain the above
+dnl       copyright notice, this list of conditions and the
+dnl       following disclaimer.
+dnl     * Redistributions in binary form must reproduce the
+dnl       above copyright notice, this list of conditions and
+dnl       the following disclaimer in the documentation and/or
+dnl       other materials provided with the distribution.
+dnl     * The names of contributors to this software may not be
+dnl       used to endorse or promote products derived from this
+dnl       software without specific prior written permission.
+dnl
+dnl THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+dnl "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+dnl LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+dnl FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+dnl COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+dnl INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+dnl BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+dnl OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+dnl AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+dnl OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+dnl THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+dnl DAMAGE.
+dnl
+dnl
+dnl CONTRIBUTORS
+dnl  Nate Nielsen <nielsen@memberwebs.com>
+dnl
+
+dnl Process this file with autoconf to produce a configure script.
+AC_INIT(scrounge-ntfs, 0.8.1, nielsen@memberwebs.com)
+AM_INIT_AUTOMAKE(scrounge-ntfs, 0.8.1)
+
+LDFLAGS="$LDFLAGS -L/usr/local/lib"
+CPPFLAGS="$CPPFLAGS -I/usr/local/include"
+CFLAGS="$CFLAGS -I/usr/local/include"
+
+AC_CONFIG_SRCDIR([src/scrounge.c])
+AM_CONFIG_HEADER([config.h])
+
+# Checks for programs.
+AC_PROG_CC
+AC_PROG_INSTALL
+AC_PROG_LN_S
+AC_PROG_MAKE_SET
+
+# Check for libraries
+
+# Checks for header files.
+AC_HEADER_STDC
+AC_CHECK_HEADERS([stdio.h stddef.h fcntl.h stdlib.h wchar.h assert.h errno.h stdint.h stdarg.h], ,
+		[echo "ERROR: Required C header missing"; exit 1])
+AC_CHECK_HEADERS([string.h io.h unistd.h err.h malloc.h sys/time.h stdint.h])
+
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_TYPE_SIZE_T
+AC_HEADER_TIME
+AC_CHECK_SIZEOF(off_t)
+AC_CHECK_TYPES([bool, uint, uint64, uint32, uint16, int64, int32, int16, byte, uint64_t, uint32_t, uint16_t, int64_t, int32_t, int16_t], , , [
+  #include <sys/types.h>
+  #include <stdint.h>
+])
+
+# Required Functions
+AC_CHECK_FUNCS([memset stat strchr strerror sprintf utimes chmod memcmp malloc realloc], ,
+	       [echo "ERROR: Required function missing"; exit 1])
+AC_CHECK_FUNCS([getopt strchr strerror getcwd chdir getopt reallocf itow itoa])
+AC_CHECK_FUNCS([wopen wchdir wmkdir lseek64])
+
+AC_CONFIG_FILES([Makefile src/Makefile win32/Makefile])
+AC_OUTPUT

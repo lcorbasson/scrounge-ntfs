@@ -57,7 +57,7 @@ char* unicode_transcode16to8(const wchar_t* src, size_t len)
     }
   }
 
-  ret[pos] = NULL;
+  ret[pos] = 0;
   return ret;
 }
 
@@ -67,7 +67,7 @@ char* unicode_transcode16to8(const wchar_t* src, size_t len)
  * Since a semi predictable length of the resulting data is 
  * known, the caller should allocate the memory for this conversion.
  */
-wchar_t* unicode_transcode8to16(const char* src, const wchar_t* out, size_t len)
+wchar_t* unicode_transcode8to16(const char* src, wchar_t* out, size_t len)
 {
   /* Note: out should always be at least as long as src in chars */
 
@@ -133,7 +133,7 @@ wchar_t* unicode_transcode8to16(const char* src, const wchar_t* out, size_t len)
     }
   }
 
-  out[pos] = NULL;
+  out[pos] = 0;
   return out;
 }
 

@@ -21,6 +21,20 @@
 #include "usuals.h"
 #include "ntfs.h"
 
+#include <sys/stat.h>
+#include <unistd.h>
+
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+
 /* NOTE: This file assumes that FC_WIDE is off */
 
 /* The NTFS file time is a a 64-bit value representing the 
@@ -80,7 +94,7 @@ void setFileAttributes(fchar_t* filename, uint32 flags)
     }
     else
     {
-      if(chmod(filename, st.st_mode & ~(S_IWUSR | S_IWGRP | S_IOTH)) == -1)
+      if(chmod(filename, st.st_mode & ~(S_IWUSR | S_IWGRP | S_IWOTH)) == -1)
         warn("couldn't set file attributes for: " FC_PRINTF, encoded);
     }
   }
