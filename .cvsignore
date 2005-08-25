@@ -16,3 +16,5 @@ stamp-*
 trash
 .cdtproject
 .project
+*.tar.gz
+.*
