@@ -88,6 +88,7 @@ ntfsx_record* ntfsx_record_alloc(partitioninfo* info);
 ntfsx_cluster* ntfsx_record_cluster(ntfsx_record* record);
 void ntfsx_record_free(ntfsx_record* record);
 bool ntfsx_record_read(ntfsx_record* record, uint64 begSector, int dd);
+bool ntfsx_record_validate(ntfsx_record* record);
 ntfs_recordheader* ntfsx_record_header(ntfsx_record* record);
 ntfsx_attribute* ntfsx_record_findattribute(ntfsx_record* record, uint32 attrType, int dd);
 

@@ -101,25 +101,25 @@ bool ntfs_dofixups(byte* cluster, uint32 size)
 {
 	ntfs_recordheader* record = (ntfs_recordheader*)cluster;
 	byte numSectors;
-  uint16* updSeq;
-  uint16* sectorFooter;
-  byte i;
+    uint16* updSeq;
+    uint16* sectorFooter;
+    byte i;
 
 	ASSERT(size % kSectorSize == 0);
-  numSectors = (byte)(size / kSectorSize);
+    numSectors = (byte)(size / kSectorSize);
 
-  /* Check the number of sectors against array */
+    /* Check the number of sectors against array */
 	if(record->cwUpdSeq - 1 < numSectors)
 		numSectors = record->cwUpdSeq - 1;
-
+      
 	updSeq = (uint16*)(cluster + record->offUpdSeq);
 
 	for(i = 0; i < numSectors; i++)
 	{
-    /*
+        /*
 		 * Check last 2 bytes in each sector against
 		 * first double byte value in update sequence 
-     */
+        */
 		sectorFooter = (uint16*)((cluster + (kSectorSize - 2)) + (i * kSectorSize));
 		if(*sectorFooter == updSeq[0])
 			*sectorFooter = updSeq[i + 1];

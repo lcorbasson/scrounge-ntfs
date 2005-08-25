@@ -1,3 +1,7 @@
+0.8.7
+ - Fix crasher on corrupted drives. A problem with update
+   sequence offset being filled with garbage [Albert Kwok]
+
 0.8.6
  - Don't exit on error reading source drive [Marius Hillenbrand]
  - Fixed core dump when attribute list, but no MFT loaded [Marius Hillenbrand]

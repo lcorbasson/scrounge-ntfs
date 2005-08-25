@@ -452,31 +452,49 @@ ntfsx_record* ntfsx_record_alloc(partitioninfo* info)
 
 void ntfsx_record_free(ntfsx_record* record)
 {
-  ntfsx_cluster_release(&(record->_clus));
-  free(record);
+    ntfsx_cluster_release(&(record->_clus));
+    free(record);
 }
 
 bool ntfsx_record_read(ntfsx_record* record, uint64 begSector, int dd)
 {
-  ntfs_recordheader* rechead;
+    ntfs_recordheader* rechead;
 
-  if(!ntfsx_cluster_read(&(record->_clus), record->info, begSector, dd))
-  {
-    warn("couldn't read mft record from drive");
-    return false;
-  }
+    if(!ntfsx_cluster_read(&(record->_clus), record->info, begSector, dd))
+    {
+        warn("couldn't read mft record from drive");
+        return false;
+    }
 
 	/* Check and validate this record */
 	rechead = ntfsx_record_header(record);
 	if(rechead->magic != kNTFS_RecMagic || 
+       !ntfsx_record_validate(record) || 
 	   !ntfs_dofixups(record->_clus.data, record->_clus.size))
 	{
-    warnx("invalid mft record");
-    ntfsx_cluster_release(&(record->_clus));
-    return false;
+        warnx("invalid mft record");
+        ntfsx_cluster_release(&(record->_clus));
+        return false;
 	}
 
-  return true;
+    return true;
+}
+
+bool ntfsx_record_validate(ntfsx_record* record)
+{
+    ntfs_recordheader* rechead;
+    rechead = ntfsx_record_header(record);
+    
+    /* 
+     * TODO: We need more validation here 
+     * In addition we should be validating attribute
+     * headers and anything else we read into memory
+     */
+    
+    if(rechead->offUpdSeq > kSectorSize)
+        return false;
+        
+    return true;    
 }
 
 ntfsx_cluster* ntfsx_record_cluster(ntfsx_record* record)
