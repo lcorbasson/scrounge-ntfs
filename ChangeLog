@@ -1,3 +1,7 @@
+0.9
+ - Use my real name 'Stef Walter'
+   See: http://memberwebs.com/nielsen/
+
 0.8.7
  - Fix crasher on corrupted drives. A problem with update
    sequence offset being filled with garbage [Albert Kwok]

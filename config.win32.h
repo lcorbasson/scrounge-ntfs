@@ -169,19 +169,19 @@
 #define PACKAGE "scrounge-ntfs"
 
 /* Define to the address where bug reports for this package should be sent. */
-#define PACKAGE_BUGREPORT "nielsen@memberwebs.com"
+#define PACKAGE_BUGREPORT "stef@memberwebs.com"
 
 /* Define to the full name of this package. */
 #define PACKAGE_NAME "scrounge-ntfs"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "scrounge-ntfs 0.8.6"
+#define PACKAGE_STRING "scrounge-ntfs 0.9"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "scrounge-ntfs"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "0.8.6"
+#define PACKAGE_VERSION "0.9"
 
 /* The size of a `off_t', as computed by sizeof. */
 #define SIZEOF_OFF_T 4

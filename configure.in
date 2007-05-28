@@ -1,5 +1,5 @@
 dnl
-dnl Copyright (c) 2004, Nate Nielsen
+dnl Copyright (c) 2004, Stefan Walter
 dnl All rights reserved.
 dnl
 dnl Redistribution and use in source and binary forms, with or without
@@ -29,15 +29,10 @@ dnl AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 dnl OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 dnl THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 dnl DAMAGE.
-dnl
-dnl
-dnl CONTRIBUTORS
-dnl  Nate Nielsen <nielsen@memberwebs.com>
-dnl
 
 dnl Process this file with autoconf to produce a configure script.
-AC_INIT(scrounge-ntfs, 0.8.6.90, nielsen@memberwebs.com)
-AM_INIT_AUTOMAKE(scrounge-ntfs, 0.8.6.90)
+AC_INIT(scrounge-ntfs, 0.9, stef@memberwebs.com)
+AM_INIT_AUTOMAKE(scrounge-ntfs, 0.9)
 
 LDFLAGS="$LDFLAGS -L/usr/local/lib"
 CFLAGS="$CFLAGS -I/usr/local/include"

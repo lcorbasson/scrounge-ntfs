@@ -1,6 +1,6 @@
 /* 
  * AUTHOR
- * N. Nielsen
+ * Stef Walter
  *
  * LICENSE
  * This software is in the public domain.
@@ -14,7 +14,7 @@
  * with the software or the use or other dealings in the software.
  * 
  * SUPPORT
- * Send bug reports to: <nielsen@memberwebs.com>
+ * Send bug reports to: <stef@memberwebs.com>
  */
 
 #ifndef __SCROUNGE_H__

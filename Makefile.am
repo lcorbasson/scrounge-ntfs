@@ -1,5 +1,5 @@
 
-# EXTRA_DIST =
+EXTRA_DIST = config.win32.h
 SUBDIRS = src win32 doc
 
 dist-hook:
