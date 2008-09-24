@@ -17,6 +17,9 @@
  * Send bug reports to: <stef@memberwebs.com>
  */
 
+#define _LARGEFILE_SOURCE
+#define _FILE_OFFSET_BITS 64
+
 #include "usuals.h"
 #include "scrounge.h"
 #include "ntfs.h"
