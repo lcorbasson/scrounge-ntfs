@@ -1,26 +1,32 @@
-0.9
- - Use my real name 'Stef Walter'
-   See: http://memberwebs.com/nielsen/
+=== ChangeLog discontinued ===
 
-0.8.7
- - Fix crasher on corrupted drives. A problem with update
-   sequence offset being filled with garbage [Albert Kwok]
+ With the move to git, this project is switching from a ChangeLog
+ file to relying on commit messages to provide change history. Please
+ write commit messages in the following format:
 
-0.8.6
- - Don't exit on error reading source drive [Marius Hillenbrand]
- - Fixed core dump when attribute list, but no MFT loaded [Marius Hillenbrand]
+=== begin example commit ===
 
-0.8.5
- - Ported to Linux/FreeBSD
- - Support for very fragmented MFTs
- - Fixed memory leaks
- - Fixed many bugs
+ Short explanation of the commit
 
-0.8
- - Support for non-contiguous MFT
- - Better support for WinXP NTFS
- - Other bug fixes
+ Longer explanation explaining exactly what's changed, whether any
+ external or private interfaces changed, what bugs were fixed (with bug
+ tracker reference if applicable) and so forth. Be concise but not too
+ brief.
 
-0.7
- - Initial public release
+=== end example commit ===
 
+ - Always add a brief description of the commit to the _first_ line of
+ the commit and terminate by two newlines. This may be the title of
+ a fixed bug, copied from Bugzilla.
+
+ - First line (the brief description) must only be one sentence and
+ should start with a capital letter unless it starts with a
+ lowercase symbol or identifier. Don't use a trailing full stop,
+ and don't exceed 72 characters.
+
+ - The main description (the body) is normal prose and should use
+ normal punctuation and capital letters where appropriate.
+
+ - When committing code on behalf of others use the --author option,
+ e.g. git commit -a --author "Joe Coder <joe@coder.org>" and
+ --signoff.
