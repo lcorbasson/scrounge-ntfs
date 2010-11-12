@@ -19,5 +19,9 @@ trash
 *.tar.gz
 .*
 *.o
+*.ncb
+*.suo
+*.user
 
 /src/scrounge-ntfs
+/win32/debug

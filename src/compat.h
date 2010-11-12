@@ -159,6 +159,9 @@ typedef unsigned int uint;
   #endif
 #endif
 
+#ifdef WIN32
+#define strtoull _strtoui64
+#endif
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
