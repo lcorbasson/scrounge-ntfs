@@ -36,15 +36,15 @@ struct _drivelocks;
 
 typedef struct _partitioninfo
 {
-	uint32 first;		/* The first sector (in sectors) */
-	uint32 end;		  /* The end sector (in sectors) */
-	uint32 mft;			/* Offset into the MFT (in sectors) */
-	byte cluster;		/* Cluster size (in sectors) */
-  int device;     /* A handle to an open device */
+	uint64 first;          /* The first sector (in sectors) */
+	uint64 end;            /* The end sector (in sectors) */
+	uint64 mft;            /* Offset into the MFT (in sectors) */
+	byte cluster;          /* Cluster size (in sectors) */
+	int device;            /* A handle to an open device */
 
-  /* Some other context stuff about the drive */
-  struct _drivelocks* locks;
-  struct _ntfsx_mftmap* mftmap;
+	/* Some other context stuff about the drive */
+	struct _drivelocks* locks;
+	struct _ntfsx_mftmap* mftmap;
 } 
 partitioninfo;
 

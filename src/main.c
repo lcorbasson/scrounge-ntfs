@@ -80,8 +80,10 @@ int main(int argc, char* argv[])
   int temp = 0;
   int mode = 0;
   int raw = 0;
+  unsigned long long ull;
   partitioninfo pi;
   char driveName[MAX_PATH + 1];
+  char *end;
 #ifdef _WIN32
   int drive = 0;
 #endif
@@ -104,8 +106,6 @@ int main(int argc, char* argv[])
     case 'c':
       {
         temp = atoi(optarg);
-        
-        /* TODO: Check this range */
         if(temp <= 0 || temp > 128)
           errx(2, "invalid cluster size (must be between 1 and 128)");
 
@@ -119,8 +119,6 @@ int main(int argc, char* argv[])
     case 'd':
       {
         temp = atoi(optarg);
-
-        /* TODO: Check this range */
         if(temp < 0 || temp > 128)
           errx(2, "invalid drive number (must be between 0 and 128)");
 
@@ -142,13 +140,11 @@ int main(int argc, char* argv[])
     /* mft offset */
     case 'm':
       {
-        temp = atoi(optarg);
-
-        /* TODO: Check this range */
-        if(temp < 0)
+        ull = strtoull(optarg, &end, 10);
+        if(*end != 0)
           errx(2, "invalid mft offset (must be positive)");
 
-        pi.mft = temp;
+        pi.mft = ull;
         mode = MODE_SCROUNGE;
       }
       break;
@@ -217,17 +213,17 @@ int main(int argc, char* argv[])
     if(argc > 2)
       warnx("ignoring extra arguments");
 
-    temp = atoi(argv[0]);
-    if(temp < 0)
+    ull = strtoull(argv[0], &end, 10);
+    if(*end != 0)
       errx(2, "invalid start sector (must be positive)");
 
-    pi.first = temp;
+    pi.first = ull;
 
-    temp = atoi(argv[1]);
-    if(temp < 0 || ((unsigned int)temp) <= pi.first)
+    ull = strtoull(argv[1], &end, 10);
+    if(*end != 0 || ull <= pi.first)
       errx(2, "invalid end sector (must be positive and greater than first)");
 
-    pi.end = temp;
+    pi.end = ull;
 
     /* Open the device */
     pi.device = open(driveName, O_BINARY | O_RDONLY | OPEN_LARGE_OPTS);
