@@ -634,6 +634,12 @@ void scroungeUsingRaw(partitioninfo* pi)
     if(checkLocationLock(&locks, sec))
       continue;
 
+#ifdef _WIN32
+	fprintf(stderr, "sector: %I64u\r", sec);
+#else
+	fprintf(stderr, "sector: %llu\r", (unsigned long long)sec);
+#endif
+
   	/* Read	the record */
     pos = SECTOR_TO_BYTES(sec);
     if(lseek64(pi->device, pos, SEEK_SET) == -1)
