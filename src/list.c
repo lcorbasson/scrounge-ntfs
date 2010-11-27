@@ -95,6 +95,11 @@ int printPartitionInfo(int dd, uint64 tblSector)
 			{
 				printPartitionInfo(dd, tblSector + mbr.partitions[i].startsec);
 			}
+			else if(tblSector + mbr.partitions[i].startsec == 1UL &&
+			        tblSector + mbr.partitions[i].endsec == 0xFFFFFFFFUL)
+			{
+				printf("    large partition, perhaps using gpt\n");
+			}
 			else if(!mbr.partitions[i].system == kPartition_Invalid)
 			{
 #ifdef _WIN32
