@@ -28,8 +28,6 @@ const char kPrintData[]		= "\
 
 const char kPrintDrive[]		= "\nDrive: %u\n";
 const char kPrintDrivePath[]		= "\nDrive: %s\n";
-const char kPrintDriveInfo[]	= "    %-15u %-15u ";
-const char kPrintNTFSInfo[]		= "%-15u %-15u";
 
 int printNTFSInfo(int dd, uint64 tblSector)
 {
@@ -53,7 +51,15 @@ int printNTFSInfo(int dd, uint64 tblSector)
 
   boot = (ntfs_bootsector*)sector;
 	if(!memcmp(boot->sysId, kNTFS_SysId, sizeof(boot->sysId)))
-		printf(kPrintNTFSInfo, boot->secPerClus, boot->offMFT * boot->secPerClus);
+	{
+#ifdef _WIN32
+		printf("%-15u %-15I64u", (unsigned int)boot->secPerClus,
+		       boot->offMFT * (uint64)boot->secPerClus);
+#else
+		printf("%-15u %-15llu", (unsigned int)boot->secPerClus,
+		       (unsigned long long)(boot->offMFT * (uint64)boot->secPerClus));
+#endif
+	}
 
 	printf("\n");
 	return 0;
@@ -91,7 +97,16 @@ int printPartitionInfo(int dd, uint64 tblSector)
 			}
 			else if(!mbr.partitions[i].system == kPartition_Invalid)
 			{
-				printf(kPrintDriveInfo, (uint32)tblSector + mbr.partitions[i].startsec, (uint32)tblSector + mbr.partitions[i].endsec);
+#ifdef _WIN32
+				printf("    %-15I64u %-15I64u ",
+				       tblSector + mbr.partitions[i].startsec,
+				       tblSector + mbr.partitions[i].endsec);
+#else
+				printf("    %-15llu %-15llu ",
+				       (unsigned long long)(tblSector + mbr.partitions[i].startsec),
+				       (unsigned long long)tblSector + mbr.partitions[i].endsec));
+#endif
+
 				printNTFSInfo(dd, tblSector + (uint64)mbr.partitions[i].startsec);
 			}
 		}
