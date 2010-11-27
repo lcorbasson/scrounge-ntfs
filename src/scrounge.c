@@ -609,7 +609,7 @@ void scroungeUsingMFT(partitioninfo* pi)
   pi->mftmap = NULL;
 }
 
-void scroungeUsingRaw(partitioninfo* pi)
+void scroungeUsingRaw(partitioninfo* pi, uint64 skip)
 {
   byte buffSec[kSectorSize];
   fchar_t dir[MAX_PATH + 1];
@@ -629,7 +629,7 @@ void scroungeUsingRaw(partitioninfo* pi)
   pi->locks = &locks;
 
 	/* Loop through sectors */
-	for(sec = pi->first; sec < pi->end; sec++)
+	for(sec = pi->first + skip; sec < pi->end; sec++)
 	{
     if(checkLocationLock(&locks, sec))
       continue;

@@ -27,14 +27,12 @@ const char kPrintHelp[]       = "\
 usage: scrounge -l                                                   \n\
   List all drive partition information.                              \n\
                                                                      \n\
-usage: scrounge [-d drive] -s                                        \n\
-  Search drive for NTFS partitions.                                  \n\
-                                                                     \n\
 usage: scrounge [-d drive] [-m mftoffset] [-c clustersize] [-o outdir] start end  \n\
   Scrounge data from a partition                                     \n\
-  -d         Drive number                                            \n\
-  -m         Offset to mft (in sectors)                              \n\
   -c         Cluster size (in sectors, default of 8)                 \n\
+  -d         Drive number                                            \n\
+  -k         Number of sectors to skip when in mft not specified.    \n\
+  -m         Offset to mft (in sectors)                              \n\
   -o         Directory to put scrounged files in                     \n\
   start      First sector of partition                               \n\
   end        Last sector of partition                                \n\
@@ -47,13 +45,11 @@ const char kPrintHelp[]       = "\
 usage: scrounge -l disk                                              \n\
   List all drive partition information.                              \n\
                                                                      \n\
-usage: scrounge -s disk                                              \n\
-  Search drive for NTFS partitions.                                  \n\
-                                                                     \n\
 usage: scrounge [-m mftoffset] [-c clustersize] [-o outdir] disk start end  \n\
   Scrounge data from a partition                                     \n\
-  -m         Offset to mft (in sectors)                              \n\
   -c         Cluster size (in sectors, default of 8)                 \n\
+  -k         Number of sectors to skip when in mft not specified.    \n\
+  -m         Offset to mft (in sectors)                              \n\
   -o         Directory to put scrounged files in                     \n\
   disk       The raw disk partitios (ie: /dev/hda)                   \n\
   start      First sector of partition                               \n\
@@ -80,6 +76,7 @@ int main(int argc, char* argv[])
   int temp = 0;
   int mode = 0;
   int raw = 0;
+  uint64 skip = 0;
   unsigned long long ull;
   partitioninfo pi;
   char driveName[MAX_PATH + 1];
@@ -126,6 +123,17 @@ int main(int argc, char* argv[])
       }
       break;
 #endif
+
+    /* skip sectors */
+    case 'k':
+      {
+        ull = strtoull(optarg, &end, 10);
+        if(*end != 0)
+          errx(2, "invalid skip number (must be positive)");
+
+        skip = ull;
+      }
+      break;
 
     /* list mode */
     case 'l':
@@ -240,7 +248,7 @@ int main(int argc, char* argv[])
     else
     {
       warnx("Scrounging via raw search. Directory info will be discarded.");
-      scroungeUsingRaw(&pi);
+      scroungeUsingRaw(&pi, skip);
     }
   }
 

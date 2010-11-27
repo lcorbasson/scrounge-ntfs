@@ -28,7 +28,7 @@ void scroungeList();
 #endif
 void scroungeListDrive(char* drive);
 void scroungeUsingMFT(partitioninfo* pi);
-void scroungeUsingRaw(partitioninfo* pi);
+void scroungeUsingRaw(partitioninfo* pi, uint64 skip);
 
 /* For compatibility */
 void setFileAttributes(fchar_t* filename, uint32 flags);
