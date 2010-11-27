@@ -611,57 +611,86 @@ void scroungeUsingMFT(partitioninfo* pi)
 
 void scroungeUsingRaw(partitioninfo* pi, uint64 skip)
 {
-  byte buffSec[kSectorSize];
-  fchar_t dir[MAX_PATH + 1];
-  uint64 sec;
-  drivelocks locks;
-  int64 pos;
-  size_t sz;
-  uint32 magic = kNTFS_RecMagic;
+	byte *buffer;
+	size_t length;
+	byte *bufsec;
+	fchar_t dir[MAX_PATH + 1];
+	uint64 sec;
+	drivelocks locks;
+	int64 pos;
+	uint64 locked;
+	size_t sz;
+	uint32 magic = kNTFS_RecMagic;
 
-  fprintf(stderr, "[Scrounging raw records...]\n");
+	fprintf(stderr, "[Scrounging raw records...]\n");
 
 	/* Save current directory away */
 	fc_getcwd(dir, MAX_PATH);
 
-  /* Get the locks ready */
-  memset(&locks, 0, sizeof(locks));
-  pi->locks = &locks;
+	/* Get the locks ready */
+	memset(&locks, 0, sizeof(locks));
+	pi->locks = &locks;
+
+	/* The memory buffer */
+	length = kSectorSize * 2048;
+	buffer = malloc(length);
+	if(!buffer)
+		errx(1, "out of memory");
 
 	/* Loop through sectors */
-	for(sec = pi->first + skip; sec < pi->end; sec++)
+	sec = pi->first + skip;
+	while(sec < pi->end)
 	{
-    if(checkLocationLock(&locks, sec))
-      continue;
-
 #ifdef _WIN32
-	fprintf(stderr, "sector: %I64u\r", sec);
+		fprintf(stderr, "sector: %I64u\r", sec);
 #else
-	fprintf(stderr, "sector: %llu\r", (unsigned long long)sec);
+		fprintf(stderr, "sector: %llu\r", (unsigned long long)sec);
 #endif
 
-  	/* Read	the record */
-    pos = SECTOR_TO_BYTES(sec);
-    if(lseek64(pi->device, pos, SEEK_SET) == -1)
-      errx(1, "can't seek device to sector");
-
-    sz = read(pi->device, buffSec, kSectorSize);
-    if(sz == -1 || sz != kSectorSize)
-    {
-      warn("can't read drive sector");
-      continue;
-    }
-
-		/* Check beginning of sector for the magic signature */
-		if(!memcmp(&magic, &buffSec, sizeof(magic)))
+		/* Skip any locked sectors, already read */
+		locked = checkLocationLock(&locks, sec);
+		if(locked > 0)
 		{
-      /* Process the record */
-      processMFTRecord(pi, sec, 0);
+			sec += locked;
+			continue;
 		}
 
-  	/* Move to right output directory */
-    fc_chdir(dir);
+		/* Read a buffer size at this point */
+		pos = SECTOR_TO_BYTES(sec);
+		if(lseek64(pi->device, pos, SEEK_SET) == -1)
+			errx(1, "can't seek device to sector");
+
+		sz = read(pi->device, buffer, length);
+		if(sz == -1 || sz < kSectorSize)
+		{
+			warn("can't read drive sector");
+
+			/* Try again and go much slower */
+			if(length != kSectorSize)
+				length = kSectorSize;
+
+			/* Already going slow, skip sector */
+			else
+				++sec;
+
+			continue;
+		}
+
+		/* Now go through the read data */
+		for(bufsec = buffer; bufsec < buffer + sz;
+			bufsec += kSectorSize, ++sec)
+		{
+			/* Check beginning of sector for the magic signature */
+			if(!memcmp(&magic, bufsec, sizeof(magic)))
+			{
+				/* Process the record */
+				processMFTRecord(pi, sec, 0);
+			}
+
+			/* Move to right output directory */
+			fc_chdir(dir);
+		}
 	}
 
-  pi->locks = NULL;
+	pi->locks = NULL;
 }

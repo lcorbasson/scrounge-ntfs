@@ -60,25 +60,27 @@ void addLocationLock(drivelocks* locks, uint64 beg, uint64 end)
 	}
 }
 
-bool checkLocationLock(drivelocks* locks, uint64 sec)
+uint64 checkLocationLock(drivelocks* locks, uint64 sec)
 {
-  uint32 i;
+	uint64 locked;
+	uint32 i;
 
-  if(locks->_locks)
-  {
-  	/* Go through and check for a lock */
-	  for(i = 0; i < locks->_current; i++)
-	  {
-		  if(sec >= locks->_locks[i].beg && 
-			  sec < locks->_locks[i].end)
-		  {
-			  sec = locks->_locks[i].end;
-			  return true;
-		  }
-    }
+	if(locks->_locks)
+	{
+		/* Go through and check for a lock */
+		for(i = 0; i < locks->_current; i++)
+		{
+			if(sec >= locks->_locks[i].beg &&
+			   sec < locks->_locks[i].end)
+			{
+				locked = locks->_locks[i].end - sec;
+				assert(locked != 0);
+				return locked;
+			}
+		}
 	}
 
-	return false;
+	return 0;
 }
 
 #ifdef _DEBUG

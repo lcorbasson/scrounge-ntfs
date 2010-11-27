@@ -32,7 +32,7 @@ typedef struct _drivelocks
 drivelocks;
 
 void addLocationLock(drivelocks* locks, uint64 beg, uint64 end);
-bool checkLocationLock(drivelocks* locks, uint64 sec);
+uint64 checkLocationLock(drivelocks* locks, uint64 sec);
 
 #ifdef _DEBUG
 void dumpLocationLocks(drivelocks* locks);

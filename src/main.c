@@ -91,9 +91,9 @@ int main(int argc, char* argv[])
   pi.cluster = 8;
 
 #ifdef _WIN32
-  while((ch = getopt(argc, argv, "c:d:hlm:o:sv")) != -1)
+  while((ch = getopt(argc, argv, "c:d:hk:lm:o:sv")) != -1)
 #else
-  while((ch = getopt(argc, argv, "c:hlm:o:sv")) != -1)
+  while((ch = getopt(argc, argv, "c:hk:lm:o:sv")) != -1)
 #endif
   {
     switch(ch)
