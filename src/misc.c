@@ -22,7 +22,6 @@
 #include "memref.h"
 #include "locks.h"
 
-
 /* These locks are used to signify which */
 struct drivelock
 {
@@ -74,7 +73,7 @@ uint64 checkLocationLock(drivelocks* locks, uint64 sec)
 			   sec < locks->_locks[i].end)
 			{
 				locked = locks->_locks[i].end - sec;
-				assert(locked != 0);
+				ASSERT(locked != 0);
 				return locked;
 			}
 		}

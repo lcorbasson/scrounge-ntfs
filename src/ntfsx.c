@@ -473,6 +473,7 @@ bool ntfsx_record_read(ntfsx_record* record, uint64 begSector, int dd)
 	   !ntfs_dofixups(record->_clus.data, record->_clus.size))
 	{
         warnx("invalid mft record");
+	errno = EINVAL;
         ntfsx_cluster_release(&(record->_clus));
         return false;
 	}

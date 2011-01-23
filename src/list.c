@@ -109,7 +109,7 @@ int printPartitionInfo(int dd, uint64 tblSector)
 #else
 				printf("    %-15llu %-15llu ",
 				       (unsigned long long)(tblSector + mbr.partitions[i].startsec),
-				       (unsigned long long)tblSector + mbr.partitions[i].endsec));
+				       (unsigned long long)(tblSector + mbr.partitions[i].endsec));
 #endif
 
 				printNTFSInfo(dd, tblSector + (uint64)mbr.partitions[i].startsec);

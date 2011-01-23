@@ -20,6 +20,7 @@
 #ifdef _DEBUG
 
 #include <stdarg.h>
+#include <assert.h>
 
 #ifndef ASSERT
 	#ifdef ATLASSERT

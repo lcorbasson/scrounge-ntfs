@@ -184,6 +184,12 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
     if(!fcscmp(basics.filename, FC_DOT))
       RETURN;
 
+#if 0
+    printf("SECTOR: %llu", (unsigned long long)sector);
+#endif
+    printf(flags & PROCESS_MFT_FLAG_SUB ?
+            "\\" FC_PRINTF : "\\" FC_PRINTF "\n", basics.filename);
+
     /* System, Hidden files that begin with $ are skipped */
     if(basics.flags & kNTFS_FileSystem && 
        basics.flags & kNTFS_FileHidden &&
@@ -204,9 +210,6 @@ void processMFTRecord(partitioninfo* pi, uint64 sector, uint32 flags)
           processMFTRecord(pi, parentSector, flags | PROCESS_MFT_FLAG_SUB);
       }
     }
-
-    printf(flags & PROCESS_MFT_FLAG_SUB ? 
-            "\\" FC_PRINTF : "\\" FC_PRINTF "\n", basics.filename);
 
     /* Directory handling: */
     if(header->flags & kNTFS_RecFlagDir)
