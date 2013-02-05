@@ -51,7 +51,7 @@ usage: scrounge [-m mftoffset] [-c clustersize] [-o outdir] disk start end  \n\
   -k         Number of sectors to skip when in mft not specified.    \n\
   -m         Offset to mft (in sectors)                              \n\
   -o         Directory to put scrounged files in                     \n\
-  disk       The raw disk partitios (ie: /dev/hda)                   \n\
+  disk       The raw disk partitions (ie: /dev/hda)                  \n\
   start      First sector of partition                               \n\
   end        Last sector of partition                                \n\
                                                                      \n\
