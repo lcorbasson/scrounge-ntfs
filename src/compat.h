@@ -326,7 +326,7 @@ void* mallocf(size_t sz);
   #ifdef _WIN32
     #define lseek64 _lseeki64
   #else
-    #if SIZEOF_OFF_T == 8
+    #if SIZEOF_OFF_T == 8 || ( defined (__CYGWIN__) && defined (__LP64__) )
       #define lseek64 lseek
     #else
       #error ERROR: Must have a working 64 bit seek function
